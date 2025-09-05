@@ -154,7 +154,10 @@
                         <span id="dieCountDisplay" class="text-base font-medium text-gray-600"></span>
                     </div>
                     <div class="flex justify-between items-center mb-2">
-                        <div id="pattern-legend" class="flex flex-wrap gap-x-4 gap-y-1 text-sm"></div>
+                        <div class="flex items-center space-x-4">
+                            <div id="pattern-legend" class="flex flex-wrap gap-x-4 gap-y-1 text-sm"></div>
+                            <button id="g_toggleAllPatterns" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">모든 패턴 숨기기</button>
+                        </div>
                         <div class="flex items-center space-x-4">
                              <div class="flex items-center">
                                 <input type="checkbox" id="showDieMapToggle" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
@@ -204,12 +207,15 @@
         const patternLegend = document.getElementById('pattern-legend');
         const showPathToggle = document.getElementById('showPathToggle');
         const showDieMapToggle = document.getElementById('showDieMapToggle');
+        const g_toggleAllPatterns = document.getElementById('g_toggleAllPatterns');
         const waferDiameterSelect = document.getElementById('waferDiameterSelect');
         const waferDiameterInput = document.getElementById('waferDiameter');
         
         let renderedPoints = [];
         let renderedIntraDiePoints = [];
         let lastGeneratedData = null;
+        let g_patternVisibility = {}; // 패턴 표시 상태 관리
+        let g_allPatternsVisible = true; // 전체 패턴 표시 상태
 
         // 웨이퍼 직경 드롭다운 처리
         waferDiameterSelect.addEventListener('change', function() {
@@ -492,8 +498,11 @@
             if (showPath) {
                 const pointsByColor = {};
                 visiblePoints.forEach(p => {
-                    if (!pointsByColor[p.color]) pointsByColor[p.color] = [];
-                    pointsByColor[p.color].push(p);
+                    const patternName = g_getPatternNameFromColor(p.color, intraDiePatterns);
+                    if (g_patternVisibility[patternName]) {
+                        if (!pointsByColor[p.color]) pointsByColor[p.color] = [];
+                        pointsByColor[p.color].push(p);
+                    }
                 });
 
                 for (const color in pointsByColor) {
@@ -512,23 +521,63 @@
                 }
             }
 
+            // 패턴 선택 상태에 따라 필터링된 점들 그리기
             visiblePoints.forEach(p => {
-                ctx.fillStyle = p.color;
-                const canvasX = centerX + p.x * scale;
-                const canvasY = centerY - p.y * scale;
-                ctx.beginPath();
-                ctx.arc(canvasX, canvasY, 2.5, 0, 2 * Math.PI);
-                ctx.fill();
-                renderedPoints.push({ canvasX, canvasY, data: p });
+                const patternName = g_getPatternNameFromColor(p.color, intraDiePatterns);
+                if (g_patternVisibility[patternName]) {
+                    ctx.fillStyle = p.color;
+                    const canvasX = centerX + p.x * scale;
+                    const canvasY = centerY - p.y * scale;
+                    ctx.beginPath();
+                    ctx.arc(canvasX, canvasY, 2.5, 0, 2 * Math.PI);
+                    ctx.fill();
+                    renderedPoints.push({ canvasX, canvasY, data: p });
+                }
             });
             
+            // 패턴 가시성 상태 초기화
+            g_patternVisibility = {};
+            intraDiePatterns.forEach((p, index) => {
+                const patternKey = p.name || `Pattern ${index + 1}`;
+                if (!(patternKey in g_patternVisibility)) {
+                    g_patternVisibility[patternKey] = true;
+                }
+            });
+            
+            // 패턴 레전드 생성 (클릭 가능)
             patternLegend.innerHTML = '';
-            intraDiePatterns.forEach(p => {
+            intraDiePatterns.forEach((p, index) => {
+                const patternKey = p.name || `Pattern ${index + 1}`;
+                const isVisible = g_patternVisibility[patternKey];
+                
                 const legendItem = document.createElement('div');
-                legendItem.className = 'flex items-center';
-                legendItem.innerHTML = `<div class="w-3 h-3 rounded-full mr-1.5" style="background-color: ${p.color};"></div><span>${p.name || 'Pattern'}</span>`;
+                legendItem.className = `flex items-center cursor-pointer hover:bg-gray-100 px-2 py-1 rounded ${isVisible ? '' : 'opacity-50'}`;
+                legendItem.innerHTML = `
+                    <input type="checkbox" ${isVisible ? 'checked' : ''} class="mr-2" data-pattern="${patternKey}">
+                    <div class="w-3 h-3 rounded-full mr-1.5" style="background-color: ${p.color};"></div>
+                    <span>${patternKey}</span>
+                `;
+                
+                // 체크박스 이벤트 리스너
+                const checkbox = legendItem.querySelector('input[type="checkbox"]');
+                checkbox.addEventListener('change', function() {
+                    g_patternVisibility[patternKey] = this.checked;
+                    drawPatternVisualization();
+                    g_updateToggleAllButton();
+                });
+                
+                // 전체 항목 클릭으로도 토글 가능
+                legendItem.addEventListener('click', function(e) {
+                    if (e.target.tagName !== 'INPUT') {
+                        checkbox.checked = !checkbox.checked;
+                        checkbox.dispatchEvent(new Event('change'));
+                    }
+                });
+                
                 patternLegend.appendChild(legendItem);
             });
+            
+            g_updateToggleAllButton();
         }
 
         function drawIntraDieVisualization(patterns) {
@@ -716,6 +765,43 @@
             }
         }
 
+        // 패턴 선택 관련 함수들
+        function g_getPatternNameFromColor(color, intraDiePatterns) {
+            const pattern = intraDiePatterns.find(p => p.color === color);
+            return pattern ? (pattern.name || `Pattern ${intraDiePatterns.indexOf(pattern) + 1}`) : 'Unknown';
+        }
+        
+        function g_updateToggleAllButton() {
+            const visibleCount = Object.values(g_patternVisibility).filter(v => v).length;
+            const totalCount = Object.keys(g_patternVisibility).length;
+            
+            if (visibleCount === totalCount || totalCount === 0) {
+                g_toggleAllPatterns.textContent = '모든 패턴 숨기기';
+                g_allPatternsVisible = true;
+            } else {
+                g_toggleAllPatterns.textContent = '모든 패턴 보이기';
+                g_allPatternsVisible = false;
+            }
+        }
+        
+        function g_toggleAllPatternsFunction() {
+            const newState = !g_allPatternsVisible;
+            
+            Object.keys(g_patternVisibility).forEach(patternKey => {
+                g_patternVisibility[patternKey] = newState;
+            });
+            
+            g_allPatternsVisible = newState;
+            
+            // 모든 체크박스 업데이트
+            document.querySelectorAll('#pattern-legend input[type="checkbox"]').forEach(checkbox => {
+                checkbox.checked = newState;
+            });
+            
+            g_updateToggleAllButton();
+            drawPatternVisualization();
+        }
+
         function exportRecipe() {
             console.log('exportRecipe 함수 호출됨');
             console.log('lastGeneratedData:', lastGeneratedData);
@@ -888,6 +974,7 @@
             if (showPathToggle) showPathToggle.addEventListener('change', () => drawPatternVisualization());
             if (showDieMapToggle) showDieMapToggle.addEventListener('change', () => drawPatternVisualization());
             if (patternCanvas) patternCanvas.addEventListener('click', handleDieSelection);
+            if (g_toggleAllPatterns) g_toggleAllPatterns.addEventListener('click', g_toggleAllPatternsFunction);
         }
         
         // DOM 로드 후 이벤트 리스너 설정
