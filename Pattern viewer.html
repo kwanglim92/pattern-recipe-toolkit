@@ -44,7 +44,7 @@
                     <div id="recipe-summary" class="mb-3 p-2 bg-gray-50 rounded text-sm text-gray-600 hidden">
                         총 <span id="total-recipes">0</span>개 레시피, <span id="total-wafer-types">0</span>종류 웨이퍼
                     </div>
-                    <div id="recipe-list" class="space-y-3">
+                    <div id="recipe-list" class="space-y-3 max-h-80 overflow-y-auto">
                         <p class="text-gray-500">여기에 레시피 파일을 불러오세요.</p>
                     </div>
                 </div>
@@ -69,19 +69,28 @@
                         </button>
                     </div>
                 </div>
+                
+                <div id="intradie-info" class="hidden pt-4 border-t space-y-3">
+                    <h2 class="text-xl font-semibold">4. 다이 내부 패턴 맵</h2>
+                    <p class="text-sm text-gray-600">각 패턴이 다이 내부에서 어떻게 분포되어 있는지 보여줍니다.</p>
+                    <div class="relative">
+                        <canvas id="intraDieCanvas" width="300" height="300" class="w-full max-w-sm mx-auto"></canvas>
+                        <div id="intraDieTooltip" class="tooltip"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- 시각화 및 좌표 -->
             <div id="viewer-content" class="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg space-y-6 hidden">
                  <div>
                     <div class="flex justify-between items-center mb-2">
-                        <h2 class="text-xl font-semibold">4. 패턴 시각화</h2>
+                        <h2 class="text-xl font-semibold">5. 패턴 시각화</h2>
                         <div id="pattern-legend" class="flex flex-wrap gap-x-4 gap-y-1 text-sm"></div>
                     </div>
                     <canvas id="waferCanvas"></canvas>
                 </div>
                 <div>
-                    <h2 class="text-xl font-semibold mb-2">5. 생성된 전체 좌표 목록</h2>
+                    <h2 class="text-xl font-semibold mb-2">6. 생성된 전체 좌표 목록</h2>
                      <p class="text-sm text-gray-600 mb-2">총 <span id="pointCount">0</span>개의 좌표</p>
                     <div>
                         <div class="border-b border-gray-200">
@@ -105,6 +114,10 @@
         const recipeListDiv = document.getElementById('recipe-list');
         const recipeInfoDiv = document.getElementById('recipe-info');
         const viewerContentDiv = document.getElementById('viewer-content');
+        const intraDieInfoDiv = document.getElementById('intradie-info');
+        const intraDieCanvas = document.getElementById('intraDieCanvas');
+        const intraDieCtx = intraDieCanvas.getContext('2d');
+        const intraDieTooltip = document.getElementById('intraDieTooltip');
         
         const infoSN = document.getElementById('info-sn');
         const infoTimestamp = document.getElementById('info-timestamp');
@@ -290,6 +303,7 @@
             // Show info and content divs
             recipeInfoDiv.classList.remove('hidden');
             viewerContentDiv.classList.remove('hidden');
+            intraDieInfoDiv.classList.remove('hidden');
 
             // Populate info
             infoSN.textContent = recipe.fileName || recipe.sampleSN;
@@ -341,6 +355,7 @@
             // Update UI
             updateResultTabs(recipe.results.visibleGroupedPoints);
             drawPatternVisualization(recipe, dieMapData, intraDiePatterns);
+            drawIntraDieVisualization(intraDiePatterns);
         }
 
         function updateResultTabs(groupedPoints) {
@@ -452,6 +467,136 @@
                 legendItem.innerHTML = `<div class="w-3 h-3 rounded-full mr-1.5" style="background-color: ${p.color};"></div><span>${p.name || 'Pattern'}</span>`;
                 patternLegend.appendChild(legendItem);
             });
+        }
+        
+        function drawIntraDieVisualization(intraDiePatterns) {
+            const canvas = intraDieCanvas;
+            const ctx = intraDieCtx;
+            
+            // 적절한 캔버스 크기 설정
+            const container = canvas.parentElement;
+            const canvasSize = Math.min(container.clientWidth, 300);
+            canvas.width = canvasSize;
+            canvas.height = canvasSize;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!intraDiePatterns || intraDiePatterns.length === 0) {
+                ctx.fillStyle = '#9ca3af';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('다이 내부 패턴 정보가 없습니다', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+            
+            // 패턴 좌표 범위 계산
+            const xCoords = intraDiePatterns.map(p => p.x);
+            const yCoords = intraDiePatterns.map(p => p.y);
+            const minX = Math.min(...xCoords, 0);
+            const maxX = Math.max(...xCoords, 0);
+            const minY = Math.min(...yCoords, 0);
+            const maxY = Math.max(...yCoords, 0);
+            
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            const maxRange = Math.max(rangeX, rangeY);
+            
+            // 스케일 및 오프셋 계산
+            const padding = 40;
+            const scale = (canvas.width - 2 * padding) / maxRange * 0.8;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            // 배경 그리드 그리기
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 2]);
+            
+            // 중심 좍
+            ctx.beginPath();
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, canvas.height);
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(canvas.width, centerY);
+            ctx.stroke();
+            
+            ctx.setLineDash([]); // 점선 해제
+            
+            // 원점 표시
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('(0,0)', centerX + 5, centerY + 5);
+            
+            // 패턴 그리기
+            const colors = ['#2563eb', '#f97316', '#10b981', '#ec4899', '#8b5cf6', '#d97706'];
+            let renderedIntraDiePoints = [];
+            
+            intraDiePatterns.forEach((pattern, index) => {
+                const canvasX = centerX + pattern.x * scale;
+                const canvasY = centerY - pattern.y * scale; // Y축 반전
+                const color = colors[index % colors.length];
+                
+                // 패턴 점 그리기
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(canvasX, canvasY, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // 패턴 이름 표시
+                if (pattern.name) {
+                    ctx.fillStyle = '#374151';
+                    ctx.font = '11px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(pattern.name, canvasX, canvasY - 8);
+                }
+                
+                // 마우스 인터랙션을 위해 저장
+                renderedIntraDiePoints.push({
+                    x: canvasX,
+                    y: canvasY,
+                    data: pattern
+                });
+            });
+            
+            // 마우스 인터랙션 이벤트 설정
+            canvas.onmousemove = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                let foundPoint = null;
+                for (const point of renderedIntraDiePoints) {
+                    const distance = Math.sqrt((point.x - mouseX)**2 + (point.y - mouseY)**2);
+                    if (distance < 10) {
+                        foundPoint = point;
+                        break;
+                    }
+                }
+                
+                if (foundPoint) {
+                    intraDieTooltip.style.display = 'block';
+                    intraDieTooltip.style.left = `${canvas.offsetLeft + foundPoint.x + 15}px`;
+                    intraDieTooltip.style.top = `${canvas.offsetTop + foundPoint.y - 10}px`;
+                    
+                    let tooltipHTML = '';
+                    if (foundPoint.data.imageUrl) {
+                        tooltipHTML += `<img src="${foundPoint.data.imageUrl}" alt="${foundPoint.data.name || 'Pattern'}" style="max-width: 80px; max-height: 80px; margin-bottom: 4px;"><br>`;
+                    }
+                    tooltipHTML += `<strong>${foundPoint.data.name || 'Pattern'}</strong><br>`;
+                    tooltipHTML += `X: ${foundPoint.data.x}µm, Y: ${foundPoint.data.y}µm`;
+                    intraDieTooltip.innerHTML = tooltipHTML;
+                } else {
+                    intraDieTooltip.style.display = 'none';
+                }
+            };
+            
+            canvas.onmouseleave = () => {
+                intraDieTooltip.style.display = 'none';
+            };
         }
 
         // --- ACTIONS ---
