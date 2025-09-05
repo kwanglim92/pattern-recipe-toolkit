@@ -123,6 +123,8 @@
         let activeRecipe = null;
         let patternVisibility = {}; // 패턴 표시 상태 관리
         let allPatternsVisible = true; // 전체 패턴 표시 상태
+        let currentDieMapData = null; // 현재 다이 맵 데이터 저장
+        let currentIntraDiePatterns = null; // 현재 다이 내부 패턴 데이터 저장
 
         // --- DOM ELEMENTS ---
         const recipeFileInput = document.getElementById('recipeFiles');
@@ -380,6 +382,10 @@
             });
             allPatternsVisible = true;
 
+            // 데이터 전역 변수에 저장
+            currentDieMapData = dieMapData;
+            currentIntraDiePatterns = intraDiePatterns;
+            
             // Update UI
             updateResultTabs(recipe.results.visibleGroupedPoints);
             drawPatternVisualization(recipe, dieMapData, intraDiePatterns);
@@ -438,6 +444,13 @@
         }
 
         function drawPatternVisualization(recipe, dieMapData, intraDiePatterns) {
+            console.log('drawPatternVisualization 호출:', { recipe: !!recipe, dieMapData: !!dieMapData, intraDiePatterns: !!intraDiePatterns });
+            
+            if (!recipe || !recipe.inputs) {
+                console.error('레시피 데이터가 없습니다');
+                return;
+            }
+            
             const { waferDiameter, diePitchX, diePitchY } = recipe.inputs;
             const waferRadius = waferDiameter / 2;
             const visiblePoints = Object.values(recipe.results.visibleGroupedPoints).flat();
@@ -483,7 +496,7 @@
             const showPath = v_showPathToggle.checked;
             
             // 다이 맵 표시
-            if (showDieMap) {
+            if (showDieMap && dieMapData) {
                 const dieWidth = diePitchX * scale;
                 const dieHeight = diePitchY * scale;
                 dieMapData.forEach(die => {
@@ -504,8 +517,13 @@
             if (showPath) {
                 const pointsByColor = {};
                 visiblePoints.forEach(p => {
-                    const patternName = getPatternNameFromColor(p.color, intraDiePatterns);
-                    if (patternVisibility[patternName] !== false) {
+                    if (intraDiePatterns) {
+                        const patternName = getPatternNameFromColor(p.color, intraDiePatterns);
+                        if (patternVisibility[patternName] !== false) {
+                            if (!pointsByColor[p.color]) pointsByColor[p.color] = [];
+                            pointsByColor[p.color].push(p);
+                        }
+                    } else {
                         if (!pointsByColor[p.color]) pointsByColor[p.color] = [];
                         pointsByColor[p.color].push(p);
                     }
@@ -529,8 +547,13 @@
             
             // 패턴 점들 그리기 (표시 설정에 따라 필터링)
             visiblePoints.forEach(p => {
-                const patternName = getPatternNameFromColor(p.color, intraDiePatterns);
-                if (patternVisibility[patternName] !== false) {
+                let shouldDraw = true;
+                if (intraDiePatterns) {
+                    const patternName = getPatternNameFromColor(p.color, intraDiePatterns);
+                    shouldDraw = patternVisibility[patternName] !== false;
+                }
+                
+                if (shouldDraw) {
                     ctx.fillStyle = p.color;
                     const canvasX = centerX + p.x * scale;
                     const canvasY = centerY - p.y * scale;
@@ -558,7 +581,9 @@
                 const checkbox = legendItem.querySelector('input[type="checkbox"]');
                 checkbox.addEventListener('change', function() {
                     patternVisibility[patternKey] = this.checked;
-                    drawPatternVisualization(activeRecipe, null, intraDiePatterns);
+                    if (activeRecipe && currentDieMapData && currentIntraDiePatterns) {
+                        drawPatternVisualization(activeRecipe, currentDieMapData, currentIntraDiePatterns);
+                    }
                 });
                 
                 // 전체 항목 클릭으로도 토글 가능
@@ -744,18 +769,8 @@
             updateToggleAllButton();
             
             // 시각화 업데이트
-            if (activeRecipe) {
-                const intraDiePatterns = activeRecipe.inputs.intraDiePatternsRaw.split('\n').map((line, index) => {
-                    const parts = line.split(',');
-                    if (parts.length < 2) return null;
-                    const name = parts.length >= 3 ? parts[0].trim() : null;
-                    const x = parseFloat(parts[parts.length - 2]);
-                    const y = parseFloat(parts[parts.length - 1]);
-                    const colors = ['#2563eb', '#f97316', '#10b981', '#ec4899', '#8b5cf6', '#d97706'];
-                    return { name, x, y, color: colors[index % colors.length] };
-                }).filter(Boolean);
-                
-                drawPatternVisualization(activeRecipe, null, intraDiePatterns);
+            if (activeRecipe && currentDieMapData && currentIntraDiePatterns) {
+                drawPatternVisualization(activeRecipe, currentDieMapData, currentIntraDiePatterns);
             }
         }
 
@@ -787,34 +802,14 @@
 
         // 체크박스 이벤트 리스너 설정
         v_showDieMapToggle.addEventListener('change', () => {
-            if (activeRecipe) {
-                const intraDiePatterns = activeRecipe.inputs.intraDiePatternsRaw.split('\n').map((line, index) => {
-                    const parts = line.split(',');
-                    if (parts.length < 2) return null;
-                    const name = parts.length >= 3 ? parts[0].trim() : null;
-                    const x = parseFloat(parts[parts.length - 2]);
-                    const y = parseFloat(parts[parts.length - 1]);
-                    const colors = ['#2563eb', '#f97316', '#10b981', '#ec4899', '#8b5cf6', '#d97706'];
-                    return { name, x, y, color: colors[index % colors.length] };
-                }).filter(Boolean);
-                
-                drawPatternVisualization(activeRecipe, null, intraDiePatterns);
+            if (activeRecipe && currentDieMapData && currentIntraDiePatterns) {
+                drawPatternVisualization(activeRecipe, currentDieMapData, currentIntraDiePatterns);
             }
         });
         
         v_showPathToggle.addEventListener('change', () => {
-            if (activeRecipe) {
-                const intraDiePatterns = activeRecipe.inputs.intraDiePatternsRaw.split('\n').map((line, index) => {
-                    const parts = line.split(',');
-                    if (parts.length < 2) return null;
-                    const name = parts.length >= 3 ? parts[0].trim() : null;
-                    const x = parseFloat(parts[parts.length - 2]);
-                    const y = parseFloat(parts[parts.length - 1]);
-                    const colors = ['#2563eb', '#f97316', '#10b981', '#ec4899', '#8b5cf6', '#d97706'];
-                    return { name, x, y, color: colors[index % colors.length] };
-                }).filter(Boolean);
-                
-                drawPatternVisualization(activeRecipe, null, intraDiePatterns);
+            if (activeRecipe && currentDieMapData && currentIntraDiePatterns) {
+                drawPatternVisualization(activeRecipe, currentDieMapData, currentIntraDiePatterns);
             }
         });
         
