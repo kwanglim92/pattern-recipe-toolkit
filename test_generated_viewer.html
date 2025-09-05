@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>테스트라인 - 전용 레시피 뷰어</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%); background-color: #2d3748;
+            color: white; padding: 10px 20px; border-radius: 8px;
+            opacity: 0; transition: opacity 0.3s ease-in-out; z-index: 1000;
+        }
+        .toast.show { opacity: 1; }
+        canvas { background-color: #f9fafb; border-radius: 0.5rem; border: 1px solid #e5e7eb; }
+        #recipe-list a.active { background-color: #e0e7ff; color: #3730a3; }
+        .table-container { max-height: 20rem; overflow-y: auto; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; font-size: 0.8rem; }
+        .data-table th { background-color: #f3f4f6; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">테스트라인</h1>
+            <h2 class="text-xl text-gray-600 mt-2">전용 레시피 뷰어</h2>
+            <p class="mt-2 text-sm text-gray-500">생성일: 2024-09-05 12:30</p>
+            <p class="text-sm text-gray-500">총 1개 레시피</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg space-y-4">
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">레시피 목록</h2>
+                    <div class="mb-3 p-2 bg-gray-50 rounded text-sm text-gray-600">
+                        총 1개 레시피
+                    </div>
+                    <div id="recipe-list" class="space-y-3 max-h-80 overflow-y-auto"></div>
+                </div>
+                
+                <div id="recipe-info" class="hidden pt-4 border-t space-y-3">
+                    <h2 class="text-xl font-semibold">레시피 정보</h2>
+                    <div>
+                        <h3 class="font-semibold">샘플 S/N: <span id="info-sn" class="font-normal">-</span></h3>
+                        <p class="text-sm text-gray-500">내보낸 시각: <span id="info-timestamp">-</span></p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <p>웨이퍼 직경: <span id="info-diameter" class="font-mono">-</span></p>
+                        <p>다이 피치 X: <span id="info-pitch-x" class="font-mono">-</span> µm</p>
+                        <p>다이 피치 Y: <span id="info-pitch-y" class="font-mono">-</span> µm</p>
+                        <p>선택된 다이: <span id="info-die-count" class="font-mono">-</span> 개</p>
+                    </div>
+                    <button id="copyBtn" class="w-full bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors shadow-md">
+                        현재 탭 복사
+                    </button>
+                </div>
+            </div>
+
+            <div id="viewer-content" class="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg space-y-6 hidden">
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">패턴 시각화</h2>
+                    <canvas id="waferCanvas" width="600" height="600"></canvas>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">생성된 전체 좌표 목록</h2>
+                    <p class="text-sm text-gray-600 mb-2">총 <span id="pointCount">0</span>개의 좌표</p>
+                    <div>
+                        <div class="border-b border-gray-200">
+                            <nav id="tab-headers" class="-mb-px flex space-x-4 overflow-x-auto"></nav>
+                        </div>
+                        <div id="tab-contents" class="mt-4"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
+
+    <script>
+        // 임베디드 레시피 데이터
+        const RECIPES = [{
+          "version": "1.1",
+          "sampleSN": "TEST_RECIPE_001", 
+          "exportTime": "2024-09-05 12:00:00",
+          "inputs": {
+            "waferDiameter": 200000,
+            "diePitchX": 5000,
+            "diePitchY": 5000,
+            "patterns": [
+              {"name": "Pattern1", "x": 0, "y": 0, "enabled": true},
+              {"name": "Pattern2", "x": 2500, "y": 2500, "enabled": true}
+            ]
+          },
+          "results": {
+            "selectedDieCount": 1234,
+            "visibleGroupedPoints": {
+              "Pattern1": [
+                {"i": 0, "j": 0, "x": 0, "y": 0},
+                {"i": 1, "j": 0, "x": 5000, "y": 0},
+                {"i": 0, "j": 1, "x": 0, "y": 5000}
+              ],
+              "Pattern2": [
+                {"i": 1, "j": 1, "x": 2500, "y": 2500},
+                {"i": 2, "j": 1, "x": 7500, "y": 2500}
+              ]
+            },
+            "dieMapData": [
+              {"i": 0, "j": 0, "onWafer": true, "selected": true},
+              {"i": 1, "j": 0, "onWafer": true, "selected": true}
+            ]
+          },
+          "fileName": "test_recipe.json"
+        }];
+        
+        let activeRecipe = null;
+        let activeRecipeIndex = -1;
+        
+        // DOM 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM 로드 완료, 뷰어 초기화 시작');
+            initializeViewer();
+        });
+        
+        function initializeViewer() {
+            console.log('뷰어 초기화 중...');
+            displayRecipeList();
+            setupEventListeners();
+        }
+        
+        function displayRecipeList() {
+            const recipeList = document.getElementById('recipe-list');
+            if (!recipeList) return;
+            
+            let html = '';
+            RECIPES.forEach((recipe, index) => {
+                const displayName = recipe.fileName || recipe.sampleSN || 'Recipe ' + (index + 1);
+                const waferSize = recipe.inputs && recipe.inputs.waferDiameter ? 
+                    Math.round(recipe.inputs.waferDiameter / 1000) + 'mm' : '';
+                
+                html += '<a href="#" class="recipe-item block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" data-index="' + index + '">';
+                html += '<div class="font-medium">' + displayName + '</div>';
+                if (waferSize) {
+                    html += '<div class="text-sm text-gray-500">웨이퍼: ' + waferSize + '</div>';
+                }
+                html += '</a>';
+            });
+            
+            recipeList.innerHTML = html;
+            console.log('레시피 목록 생성 완료');
+        }
+        
+        function setupEventListeners() {
+            console.log('이벤트 리스너 설정 중...');
+            
+            // 레시피 클릭 이벤트
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('.recipe-item')) {
+                    e.preventDefault();
+                    const item = e.target.closest('.recipe-item');
+                    const index = parseInt(item.dataset.index);
+                    console.log('레시피 선택:', index);
+                    loadRecipe(index);
+                }
+            });
+            
+            // 복사 버튼 이벤트
+            const copyBtn = document.getElementById('copyBtn');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', function() {
+                    console.log('복사 버튼 클릭');
+                    copyActiveTab();
+                });
+            }
+        }
+        
+        function loadRecipe(index) {
+            console.log('레시피 로드 시작:', index);
+            
+            if (index < 0 || index >= RECIPES.length) return;
+            
+            const recipe = RECIPES[index];
+            activeRecipe = recipe;
+            activeRecipeIndex = index;
+            
+            // UI 업데이트
+            document.querySelectorAll('.recipe-item').forEach(item => item.classList.remove('active'));
+            const activeItem = document.querySelector('[data-index="' + index + '"]');
+            if (activeItem) activeItem.classList.add('active');
+            
+            displayRecipeInfo(recipe);
+            displayCoordinateTabs(recipe);
+            drawVisualization(recipe);
+            
+            // 섹션 표시
+            const recipeInfo = document.getElementById('recipe-info');
+            const viewerContent = document.getElementById('viewer-content');
+            if (recipeInfo) recipeInfo.classList.remove('hidden');
+            if (viewerContent) viewerContent.classList.remove('hidden');
+            
+            console.log('레시피 로드 완료');
+        }
+        
+        function displayRecipeInfo(recipe) {
+            if (!recipe) return;
+            
+            const sampleSN = recipe.sampleSN || '-';
+            const exportTime = recipe.exportTime || '-';
+            const waferDiameter = recipe.inputs && recipe.inputs.waferDiameter ? 
+                Math.round(recipe.inputs.waferDiameter / 1000) + 'mm' : '-';
+            const diePitchX = recipe.inputs ? recipe.inputs.diePitchX || '-' : '-';
+            const diePitchY = recipe.inputs ? recipe.inputs.diePitchY || '-' : '-';
+            const dieCount = recipe.results ? recipe.results.selectedDieCount || '-' : '-';
+            
+            const updateElement = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            };
+            
+            updateElement('info-sn', sampleSN);
+            updateElement('info-timestamp', exportTime);
+            updateElement('info-diameter', waferDiameter);
+            updateElement('info-pitch-x', diePitchX);
+            updateElement('info-pitch-y', diePitchY);
+            updateElement('info-die-count', dieCount);
+            
+            console.log('레시피 정보 표시 완료');
+        }
+        
+        function displayCoordinateTabs(recipe) {
+            console.log('좌표 탭 생성 시작');
+            
+            if (!recipe.results || !recipe.results.visibleGroupedPoints) return;
+            
+            const tabHeaders = document.getElementById('tab-headers');
+            const tabContents = document.getElementById('tab-contents');
+            if (!tabHeaders || !tabContents) return;
+            
+            tabHeaders.innerHTML = '';
+            tabContents.innerHTML = '';
+            
+            const groupedPoints = recipe.results.visibleGroupedPoints;
+            let totalPoints = 0;
+            let isFirst = true;
+            
+            for (const patternKey in groupedPoints) {
+                const points = groupedPoints[patternKey];
+                if (!points || points.length === 0) continue;
+                
+                totalPoints += points.length;
+                
+                // 탭 버튼 생성
+                const tabBtn = document.createElement('button');
+                tabBtn.textContent = patternKey + ' (' + points.length + ')';
+                tabBtn.className = 'px-3 py-2 font-medium text-sm border-b-2 focus:outline-none';
+                tabBtn.dataset.target = 'tab-' + patternKey;
+                
+                // 탭 내용 생성
+                const tabDiv = document.createElement('div');
+                tabDiv.id = 'tab-' + patternKey;
+                tabDiv.className = 'table-container';
+                
+                const table = document.createElement('table');
+                table.className = 'data-table';
+                
+                let tableHTML = '<thead><tr><th>No.</th><th>Grid X</th><th>Grid Y</th><th>X</th><th>Y</th></tr></thead><tbody>';
+                points.forEach((p, i) => {
+                    tableHTML += '<tr><td>' + (i + 1) + '</td><td>' + (p.i || 0) + '</td><td>' + (p.j || 0) + '</td>';
+                    tableHTML += '<td>' + (p.x ? p.x.toFixed(0) : '0') + '</td><td>' + (p.y ? p.y.toFixed(0) : '0') + '</td></tr>';
+                });
+                tableHTML += '</tbody>';
+                
+                table.innerHTML = tableHTML;
+                tabDiv.appendChild(table);
+                
+                // 첫 번째 탭 활성화
+                if (isFirst) {
+                    tabBtn.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
+                    tabDiv.style.display = 'block';
+                    isFirst = false;
+                } else {
+                    tabBtn.classList.add('border-transparent', 'text-gray-500');
+                    tabDiv.style.display = 'none';
+                }
+                
+                // 탭 클릭 이벤트
+                tabBtn.addEventListener('click', function() {
+                    switchTab(this.dataset.target);
+                });
+                
+                tabHeaders.appendChild(tabBtn);
+                tabContents.appendChild(tabDiv);
+            }
+            
+            // 총 포인트 수 업데이트
+            const pointCountEl = document.getElementById('pointCount');
+            if (pointCountEl) pointCountEl.textContent = totalPoints;
+            
+            console.log('좌표 탭 생성 완료, 총', totalPoints, '개 포인트');
+        }
+        
+        function switchTab(targetId) {
+            // 모든 탭 비활성화
+            document.querySelectorAll('#tab-headers button').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'text-blue-600', 'bg-blue-50');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            });
+            document.querySelectorAll('#tab-contents > div').forEach(div => {
+                div.style.display = 'none';
+            });
+            
+            // 선택된 탭 활성화
+            const activeBtn = document.querySelector('[data-target="' + targetId + '"]');
+            const activeTab = document.getElementById(targetId);
+            
+            if (activeBtn) {
+                activeBtn.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
+                activeBtn.classList.remove('border-transparent', 'text-gray-500');
+            }
+            if (activeTab) {
+                activeTab.style.display = 'block';
+            }
+        }
+        
+        function drawVisualization(recipe) {
+            console.log('시각화 그리기 시작');
+            
+            const canvas = document.getElementById('waferCanvas');
+            if (!canvas || !recipe.inputs) return;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            ctx.clearRect(0, 0, width, height);
+            
+            const waferDiameter = recipe.inputs.waferDiameter;
+            const waferRadius = waferDiameter / 2;
+            const scale = Math.min(width, height) * 0.8 / waferDiameter;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            
+            // 웨이퍼 원 그리기
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, waferRadius * scale, 0, 2 * Math.PI);
+            ctx.strokeStyle = '#EF4444';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // 패턴 포인트 그리기
+            if (recipe.results && recipe.results.visibleGroupedPoints) {
+                const colors = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#14B8A6'];
+                let colorIndex = 0;
+                
+                for (const patternKey in recipe.results.visibleGroupedPoints) {
+                    const points = recipe.results.visibleGroupedPoints[patternKey];
+                    const color = colors[colorIndex % colors.length];
+                    
+                    ctx.fillStyle = color;
+                    points.forEach(point => {
+                        const x = centerX + (point.x || 0) * scale;
+                        const y = centerY - (point.y || 0) * scale;
+                        
+                        ctx.beginPath();
+                        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                        ctx.fill();
+                    });
+                    
+                    colorIndex++;
+                }
+            }
+            
+            console.log('시각화 그리기 완료');
+        }
+        
+        function copyActiveTab() {
+            const activeTab = document.querySelector('#tab-contents > div:not([style*="display: none"]) table');
+            if (!activeTab) return;
+            
+            let content = '';
+            activeTab.querySelectorAll('tr').forEach(row => {
+                const cells = [];
+                row.querySelectorAll('th, td').forEach(cell => {
+                    cells.push(cell.textContent);
+                });
+                content += cells.join('\t') + '\n';
+            });
+            
+            navigator.clipboard.writeText(content).then(() => {
+                showToast();
+            }).catch(() => {
+                console.log('클립보드 복사 실패');
+            });
+        }
+        
+        function showToast() {
+            const toast = document.getElementById('toast');
+            if (toast) {
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>

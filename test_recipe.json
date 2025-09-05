@@ -1,0 +1,33 @@
+{
+  "version": "1.1",
+  "sampleSN": "TEST_RECIPE_001", 
+  "exportTime": "2024-09-05 12:00:00",
+  "inputs": {
+    "waferDiameter": 200000,
+    "diePitchX": 5000,
+    "diePitchY": 5000,
+    "patterns": [
+      {"name": "Pattern1", "x": 0, "y": 0, "enabled": true},
+      {"name": "Pattern2", "x": 2500, "y": 2500, "enabled": true}
+    ]
+  },
+  "results": {
+    "selectedDieCount": 1234,
+    "visibleGroupedPoints": {
+      "Pattern1": [
+        {"i": 0, "j": 0, "x": 0, "y": 0},
+        {"i": 1, "j": 0, "x": 5000, "y": 0},
+        {"i": 0, "j": 1, "x": 0, "y": 5000}
+      ],
+      "Pattern2": [
+        {"i": 1, "j": 1, "x": 2500, "y": 2500},
+        {"i": 2, "j": 1, "x": 7500, "y": 2500}
+      ]
+    },
+    "dieMapData": [
+      {"i": 0, "j": 0, "onWafer": true, "selected": true},
+      {"i": 1, "j": 0, "onWafer": true, "selected": true}
+    ]
+  },
+  "fileName": "test_recipe.json"
+}

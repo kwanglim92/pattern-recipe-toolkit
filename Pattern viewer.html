@@ -1333,7 +1333,7 @@
                 row.querySelectorAll('th, td').forEach(cell => {
                     cells.push(cell.textContent);
                 });
-                content += cells.join('\\t') + '\\n';
+                content += cells.join('\t') + '\n';
             });
             
             navigator.clipboard.writeText(content).then(() => {
@@ -1399,7 +1399,7 @@
             a.click();
             window.URL.revokeObjectURL(url);
             
-            alert(`${lineName} 전용 뷰어가 생성되었습니다.\\n파일명: ${a.download}`);
+            alert(`${lineName} 전용 뷰어가 생성되었습니다.\n파일명: ${a.download}`);
         }
 
         // --- EVENT LISTENERS FOR LINE VIEWER ---
@@ -1421,9 +1421,9 @@
                 generateBtn.addEventListener('click', generateLineViewer);
             }
             
-            // Update recipe selection list when recipes are loaded
+            // Override the existing displayRecipeList to include line viewer functionality
             const originalDisplayRecipeList = displayRecipeList;
-            window.displayRecipeList = function() {
+            displayRecipeList = function() {
                 originalDisplayRecipeList();
                 updateRecipeSelectionList();
                 
