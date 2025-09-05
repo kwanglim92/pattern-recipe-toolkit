@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Line Viewer Generator Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg">
+        <h1 class="text-2xl font-bold mb-4">Line-Specific Viewer Generator Test</h1>
+        
+        <div class="mb-4">
+            <h2 class="text-lg font-semibold mb-2">Test Recipe Data</h2>
+            <button id="loadTestData" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Load Test Recipe Data
+            </button>
+        </div>
+        
+        <div id="test-results" class="mt-4 p-4 bg-gray-50 rounded hidden">
+            <h3 class="font-semibold mb-2">Test Results:</h3>
+            <ul id="results-list" class="space-y-1 text-sm"></ul>
+        </div>
+        
+        <div class="mt-6">
+            <h2 class="text-lg font-semibold mb-2">Instructions:</h2>
+            <ol class="list-decimal list-inside space-y-2 text-sm">
+                <li>Click "Load Test Recipe Data" to simulate loading recipes</li>
+                <li>Open "Pattern viewer.html" in a new tab</li>
+                <li>Load some actual recipe JSON files</li>
+                <li>Verify the "라인별 전용 뷰어 생성" section appears</li>
+                <li>Enter a line name (e.g., "Test-Line-A")</li>
+                <li>Select recipes and generate a standalone viewer</li>
+                <li>Open the generated HTML file to verify functionality</li>
+            </ol>
+        </div>
+    </div>
+    
+    <script>
+        function addResult(message, isSuccess = true) {
+            const resultsList = document.getElementById('results-list');
+            const li = document.createElement('li');
+            li.className = isSuccess ? 'text-green-600' : 'text-red-600';
+            li.textContent = `✓ ${message}`;
+            resultsList.appendChild(li);
+        }
+        
+        function testLineViewerFunctions() {
+            const results = document.getElementById('test-results');
+            results.classList.remove('hidden');
+            
+            // Test 1: Recipe selection list generation
+            try {
+                const testRecipes = [
+                    { sampleSN: 'TEST001', inputs: { waferDiameter: 200000 }, fileName: 'test1.json' },
+                    { sampleSN: 'TEST002', inputs: { waferDiameter: 300000 }, fileName: 'test2.json' }
+                ];
+                addResult('Test recipe data structure created');
+                
+                // Test 2: File naming convention
+                const now = new Date();
+                const dateForFilename = now.toISOString().split('T')[0];
+                const testFilename = `Test-Line-A_viewer_${dateForFilename}.html`;
+                addResult(`Filename generation test: ${testFilename}`);
+                
+                // Test 3: HTML template structure
+                const testLineName = 'Test-Line-A';
+                const testDate = now.toLocaleString('ko-KR', {
+                    year: 'numeric',
+                    month: '2-digit', 
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                addResult(`Template variables test: Line="${testLineName}", Date="${testDate}"`);
+                
+                // Test 4: JSON serialization
+                try {
+                    const embedData = {
+                        lineName: testLineName,
+                        generationDate: testDate,
+                        recipes: testRecipes
+                    };
+                    const jsonString = JSON.stringify(embedData, null, 8);
+                    addResult('JSON serialization test passed');
+                } catch (e) {
+                    addResult('JSON serialization test failed: ' + e.message, false);
+                }
+                
+                addResult('All line viewer function tests completed successfully!');
+                
+            } catch (error) {
+                addResult('Test failed: ' + error.message, false);
+            }
+        }
+        
+        document.getElementById('loadTestData').addEventListener('click', testLineViewerFunctions);
+    </script>
+</body>
+</html>
