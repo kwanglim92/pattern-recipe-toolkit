@@ -65,16 +65,22 @@
                     <h2 class="text-xl font-semibold mb-2">1. 웨이퍼 및 다이 정보 입력</h2>
                     <div class="grid grid-cols-2 gap-4">
                         <div class="col-span-2">
-                            <label for="waferDiameter" class="text-sm font-medium">웨이퍼 직경 (µm)</label>
-                            <input type="number" id="waferDiameter" value="200000" class="w-full mt-1 p-2 border rounded-md">
+                            <label for="waferDiameterSelect" class="text-sm font-medium">웨이퍼 직경 (mm)</label>
+                            <select id="waferDiameterSelect" class="w-full mt-1 p-2 border rounded-md">
+                                <option value="custom">직접입력</option>
+                                <option value="150" selected>150mm</option>
+                                <option value="200">200mm</option>
+                                <option value="300">300mm</option>
+                            </select>
+                            <input type="number" id="waferDiameter" placeholder="직경을 mm 단위로 입력하세요" class="w-full mt-2 p-2 border rounded-md hidden">
                         </div>
                         <div>
                             <label for="diePitchX" class="text-sm font-medium">다이 피치 X (µm)</label>
-                            <input type="number" id="diePitchX" value="19090" class="w-full mt-1 p-2 border rounded-md">
+                            <input type="number" id="diePitchX" placeholder="마이크론 단위로 입력" class="w-full mt-1 p-2 border rounded-md">
                         </div>
                         <div>
                             <label for="diePitchY" class="text-sm font-medium">다이 피치 Y (µm)</label>
-                            <input type="number" id="diePitchY" value="17290" class="w-full mt-1 p-2 border rounded-md">
+                            <input type="number" id="diePitchY" placeholder="마이크론 단위로 입력" class="w-full mt-1 p-2 border rounded-md">
                         </div>
                     </div>
                     <!-- 다이 피치 자동 계산기 -->
@@ -198,10 +204,43 @@
         const patternLegend = document.getElementById('pattern-legend');
         const showPathToggle = document.getElementById('showPathToggle');
         const showDieMapToggle = document.getElementById('showDieMapToggle');
+        const waferDiameterSelect = document.getElementById('waferDiameterSelect');
+        const waferDiameterInput = document.getElementById('waferDiameter');
         
         let renderedPoints = [];
         let renderedIntraDiePoints = [];
         let lastGeneratedData = null;
+
+        // 웨이퍼 직경 드롭다운 처리
+        waferDiameterSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                waferDiameterInput.classList.remove('hidden');
+                waferDiameterInput.value = '';
+            } else {
+                waferDiameterInput.classList.add('hidden');
+                waferDiameterInput.value = this.value;
+            }
+            // 선택이 변경될 때마다 자동으로 재생성
+            generateCoordinates();
+        });
+
+        // 초기값 설정 (150mm 선택됨)
+        waferDiameterInput.value = '150';
+
+        // 현재 웨이퍼 직경을 µm 단위로 가져오는 함수
+        function getWaferDiameterInMicrons() {
+            const selectedValue = waferDiameterSelect.value;
+            let diameterMM;
+            
+            if (selectedValue === 'custom') {
+                diameterMM = parseFloat(waferDiameterInput.value);
+            } else {
+                diameterMM = parseFloat(selectedValue);
+            }
+            
+            // mm를 µm로 변환 (1mm = 1000µm)
+            return diameterMM * 1000;
+        }
 
         function calculatePitch() {
             const ref00x = parseFloat(document.getElementById('ref00x').value);
@@ -222,8 +261,9 @@
         }
 
         function generateCoordinates() {
+            const waferDiameterMicrons = getWaferDiameterInMicrons();
             const params = {
-                waferDiameter: parseFloat(document.getElementById('waferDiameter').value),
+                waferDiameter: waferDiameterMicrons,
                 diePitchX: parseFloat(document.getElementById('diePitchX').value),
                 diePitchY: parseFloat(document.getElementById('diePitchY').value),
             };
@@ -573,7 +613,8 @@
             // Summary Sheet
             const summarySheet = workbook.addWorksheet('Summary');
             summarySheet.columns = [ { header: 'Parameter', key: 'param', width: 25 }, { header: 'Value', key: 'value', width: 25 } ];
-            summarySheet.addRow({ param: 'Wafer Diameter (µm)', value: params.waferDiameter });
+            const waferDiameterMM = params.waferDiameter / 1000; // µm를 mm로 변환
+            summarySheet.addRow({ param: 'Wafer Diameter (mm)', value: waferDiameterMM });
             summarySheet.addRow({ param: 'Die Pitch X (µm)', value: params.diePitchX });
             summarySheet.addRow({ param: 'Die Pitch Y (µm)', value: params.diePitchY });
             summarySheet.addRow({ param: 'Selected Die Count', value: selectedDies.size });
@@ -706,6 +747,7 @@
                 exportTimestamp: new Date().toISOString(),
                 inputs: {
                     waferDiameter: params.waferDiameter,
+                    waferDiameterMM: params.waferDiameter / 1000, // mm 단위도 저장
                     diePitchX: params.diePitchX,
                     diePitchY: params.diePitchY,
                     intraDiePatternsRaw: document.getElementById('intraDiePatterns').value,
