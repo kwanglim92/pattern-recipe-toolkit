@@ -41,7 +41,10 @@
                 </div>
                 <div class="pt-4 border-t">
                     <h2 class="text-xl font-semibold mb-2">2. 레시피 목록</h2>
-                    <div id="recipe-list" class="space-y-2">
+                    <div id="recipe-summary" class="mb-3 p-2 bg-gray-50 rounded text-sm text-gray-600 hidden">
+                        총 <span id="total-recipes">0</span>개 레시피, <span id="total-wafer-types">0</span>종류 웨이퍼
+                    </div>
+                    <div id="recipe-list" class="space-y-3">
                         <p class="text-gray-500">여기에 레시피 파일을 불러오세요.</p>
                     </div>
                 </div>
@@ -52,7 +55,7 @@
                         <p class="text-sm text-gray-500">내보낸 시각: <span id="info-timestamp">-</span></p>
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-sm">
-                        <p>웨이퍼 직경: <span id="info-diameter" class="font-mono">-</span> µm</p>
+                        <p>웨이퍼 직경: <span id="info-diameter" class="font-mono">-</span></p>
                         <p>다이 피치 X: <span id="info-pitch-x" class="font-mono">-</span> µm</p>
                         <p>다이 피치 Y: <span id="info-pitch-y" class="font-mono">-</span> µm</p>
                         <p>선택된 다이: <span id="info-die-count" class="font-mono">-</span> 개</p>
@@ -160,22 +163,116 @@
 
         function updateRecipeList() {
             recipeListDiv.innerHTML = '';
+            const summaryDiv = document.getElementById('recipe-summary');
+            const totalRecipesSpan = document.getElementById('total-recipes');
+            const totalWaferTypesSpan = document.getElementById('total-wafer-types');
+            
             if (loadedRecipes.length === 0) {
                 recipeListDiv.innerHTML = '<p class="text-gray-500">유효한 레시피 파일이 없습니다.</p>';
+                summaryDiv.classList.add('hidden');
                 return;
             }
             
+            // 웨이퍼 크기별로 그룹화
+            const groupedByWafer = {};
+            
             loadedRecipes.forEach(recipe => {
-                const a = document.createElement('a');
-                a.href = '#';
-                a.dataset.sn = recipe.sampleSN;
-                a.className = 'block p-3 rounded-md hover:bg-gray-100';
-                a.innerHTML = `<p class="font-semibold text-gray-800">${recipe.sampleSN}</p><p class="text-sm text-gray-500">${new Date(recipe.exportTimestamp).toLocaleString()}</p>`;
-                a.onclick = (e) => {
-                    e.preventDefault();
-                    displayRecipe(recipe.sampleSN);
+                // 웨이퍼 정보 추출 (신버전 또는 구버전 대응)
+                let waferCategory;
+                let waferSizeMM;
+                
+                if (recipe.waferInfo && recipe.waferInfo.category) {
+                    // 신버전 (v1.1+)
+                    waferCategory = recipe.waferInfo.category;
+                    waferSizeMM = recipe.waferInfo.sizeMM;
+                } else if (recipe.inputs && recipe.inputs.waferDiameterMM) {
+                    // 구버전 호환
+                    waferSizeMM = recipe.inputs.waferDiameterMM;
+                    waferCategory = `${waferSizeMM}mm`;
+                } else if (recipe.inputs && recipe.inputs.waferDiameter) {
+                    // 아주 구버전 (µm 단위만 있는 경우)
+                    waferSizeMM = recipe.inputs.waferDiameter / 1000;
+                    waferCategory = `${waferSizeMM}mm`;
+                } else {
+                    waferCategory = '알 수 없음';
+                    waferSizeMM = 0;
+                }
+                
+                if (!groupedByWafer[waferCategory]) {
+                    groupedByWafer[waferCategory] = {
+                        recipes: [],
+                        sizeMM: waferSizeMM
+                    };
+                }
+                groupedByWafer[waferCategory].recipes.push(recipe);
+            });
+            
+            // 요약 정보 업데이트
+            const waferTypes = Object.keys(groupedByWafer);
+            totalRecipesSpan.textContent = loadedRecipes.length;
+            totalWaferTypesSpan.textContent = waferTypes.length;
+            summaryDiv.classList.remove('hidden');
+            
+            // 웨이퍼 크기별로 정렬 (숫자 오름차순)
+            const sortedWaferTypes = waferTypes.sort((a, b) => {
+                const sizeA = groupedByWafer[a].sizeMM;
+                const sizeB = groupedByWafer[b].sizeMM;
+                return sizeA - sizeB;
+            });
+            
+            // 각 웨이퍼 그룹 렌더링
+            sortedWaferTypes.forEach((waferType, index) => {
+                const group = groupedByWafer[waferType];
+                const recipes = group.recipes;
+                
+                // 그룹 제목
+                const groupHeader = document.createElement('div');
+                groupHeader.className = 'flex items-center justify-between py-2 px-3 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100';
+                groupHeader.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 mr-2 text-blue-600">▼</span>
+                        <span class="font-semibold text-blue-800">${waferType}</span>
+                    </div>
+                    <span class="text-sm text-blue-600 bg-blue-100 px-2 py-1 rounded">${recipes.length}개 샘플</span>
+                `;
+                
+                // 그룹 콘텐츠
+                const groupContent = document.createElement('div');
+                groupContent.className = 'ml-4 space-y-2';
+                groupContent.style.display = index === 0 ? 'block' : 'none'; // 첫 번째 그룹만 기본 오픈
+                
+                // 그룹 내 레시피들 정렬 (샘플명 알파벳순)
+                recipes.sort((a, b) => a.sampleSN.localeCompare(b.sampleSN));
+                
+                recipes.forEach(recipe => {
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.dataset.sn = recipe.sampleSN;
+                    a.className = 'block p-3 rounded-md hover:bg-gray-100 border border-gray-200';
+                    
+                    const displayName = recipe.fileName || recipe.sampleSN;
+                    a.innerHTML = `
+                        <p class="font-semibold text-gray-800">${displayName}</p>
+                        <p class="text-sm text-gray-500">${new Date(recipe.exportTimestamp).toLocaleString()}</p>
+                        <p class="text-xs text-gray-400">S/N: ${recipe.sampleSN}</p>
+                    `;
+                    a.onclick = (e) => {
+                        e.preventDefault();
+                        displayRecipe(recipe.sampleSN);
+                    };
+                    groupContent.appendChild(a);
+                });
+                
+                // 그룹 토글 기능
+                groupHeader.onclick = () => {
+                    const isVisible = groupContent.style.display === 'block';
+                    groupContent.style.display = isVisible ? 'none' : 'block';
+                    const arrow = groupHeader.querySelector('span');
+                    arrow.textContent = isVisible ? '▶' : '▼';
                 };
-                recipeListDiv.appendChild(a);
+                
+                recipeListDiv.appendChild(groupHeader);
+                recipeListDiv.appendChild(groupContent);
             });
         }
 
@@ -195,9 +292,18 @@
             viewerContentDiv.classList.remove('hidden');
 
             // Populate info
-            infoSN.textContent = recipe.sampleSN;
+            infoSN.textContent = recipe.fileName || recipe.sampleSN;
             infoTimestamp.textContent = new Date(recipe.exportTimestamp).toLocaleString();
-            infoDiameter.textContent = recipe.inputs.waferDiameter;
+            
+            // 웨이퍼 직경 정보 표시 (신버전에서는 mm 단위 우선 표시)
+            if (recipe.waferInfo && recipe.waferInfo.sizeMM) {
+                infoDiameter.textContent = `${recipe.waferInfo.sizeMM}mm (${recipe.inputs.waferDiameter}µm)`;
+            } else if (recipe.inputs.waferDiameterMM) {
+                infoDiameter.textContent = `${recipe.inputs.waferDiameterMM}mm (${recipe.inputs.waferDiameter}µm)`;
+            } else {
+                infoDiameter.textContent = recipe.inputs.waferDiameter;
+            }
+            
             infoPitchX.textContent = recipe.inputs.diePitchX;
             infoPitchY.textContent = recipe.inputs.diePitchY;
             infoDieCount.textContent = recipe.results.selectedDieCount;
