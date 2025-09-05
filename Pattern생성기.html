@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>다이(Die) 패턴 좌표 생성기 (고급 시각화 기능 탑재)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- NEW: ExcelJS library for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%); background-color: #2d3748;
+            color: white; padding: 10px 20px; border-radius: 8px;
+            opacity: 0; transition: opacity 0.3s ease-in-out; z-index: 1000;
+        }
+        .toast.show { opacity: 1; }
+        canvas { background-color: #f9fafb; border-radius: 0.5rem; border: 1px solid #e5e7eb; cursor: crosshair; }
+        /* 스크롤바 스타일 */
+        #tab-headers::-webkit-scrollbar { height: 4px; }
+        #tab-headers::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 2px; }
+        #tab-headers::-webkit-scrollbar-track { background-color: #f1f5f9; }
+        /* 툴팁 스타일 */
+        .tooltip {
+            display: none;
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 200px;
+            text-align: center;
+        }
+        .tooltip img {
+            max-width: 100px;
+            max-height: 100px;
+            margin: 0 auto 5px;
+            display: block;
+            border-radius: 3px;
+        }
+        /* 테이블 스타일 */
+        .table-container { max-height: 20rem; overflow-y: auto; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; font-size: 0.8rem; }
+        .data-table th { background-color: #f3f4f6; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">다이(Die) 패턴 좌표 생성기</h1>
+            <p class="mt-2 text-gray-600">웨이퍼와 다이의 물리적 크기를 기반으로 전체 좌표를 자동으로 계산하고 생성합니다.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <!-- 입력 및 제어 -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg space-y-4">
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">1. 웨이퍼 및 다이 정보 입력</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2">
+                            <label for="waferDiameter" class="text-sm font-medium">웨이퍼 직경 (µm)</label>
+                            <input type="number" id="waferDiameter" value="200000" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label for="diePitchX" class="text-sm font-medium">다이 피치 X (µm)</label>
+                            <input type="number" id="diePitchX" value="19090" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label for="diePitchY" class="text-sm font-medium">다이 피치 Y (µm)</label>
+                            <input type="number" id="diePitchY" value="17290" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                    </div>
+                    <!-- 다이 피치 자동 계산기 -->
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <h3 class="text-lg font-semibold mb-2 text-gray-800">다이 피치 자동 계산 (옵션)</h3>
+                        <p class="text-sm text-gray-600 mb-3">기준 다이들의 동일한 패턴 위치를 입력하면 피치가 자동 계산됩니다.</p>
+                        <div class="space-y-2">
+                            <div class="grid grid-cols-3 gap-2 items-center">
+                                <label class="text-sm font-medium col-span-1">(0,0) 다이</label>
+                                <input type="number" id="ref00x" placeholder="X 좌표" class="w-full p-2 border rounded-md col-span-1">
+                                <input type="number" id="ref00y" placeholder="Y 좌표" class="w-full p-2 border rounded-md col-span-1">
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 items-center">
+                                <label class="text-sm font-medium col-span-1">(1,0) 다이</label>
+                                <input type="number" id="ref10x" placeholder="X 좌표" class="w-full p-2 border rounded-md col-span-1">
+                                <input type="number" id="ref10y" placeholder="Y 좌표" class="w-full p-2 border rounded-md col-span-1">
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 items-center">
+                                <label class="text-sm font-medium col-span-1">(0,1) 다이</label>
+                                <input type="number" id="ref01x" placeholder="X 좌표" class="w-full p-2 border rounded-md col-span-1">
+                                <input type="number" id="ref01y" placeholder="Y 좌표" class="w-full p-2 border rounded-md col-span-1">
+                            </div>
+                        </div>
+                        <button id="calculatePitchBtn" class="w-full mt-3 bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors">피치 계산</button>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">2. 다이 내부 패턴 좌표 입력</h2>
+                    <p class="text-sm text-gray-600 mb-2">`이름,x,y,이미지URL` 형식으로 입력하세요.</p>
+                    <textarea id="intraDiePatterns" class="w-full h-32 p-3 border rounded-md font-mono text-sm" placeholder="Center,-1312,-80,https://placehold.co/100x100/EFEFEF/333?text=Center&#10;Top,0,8000,https://placehold.co/100x100/EFEFEF/333?text=Top">Center,-1312,-80,https://placehold.co/100x100/EFEFEF/333?text=Center</textarea>
+                </div>
+                
+                <div class="flex space-x-2">
+                    <button id="generateBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors shadow-md">
+                        전체 좌표 생성
+                    </button>
+                    <button id="exportBtn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-colors shadow-md">
+                        엑셀 보고서 내보내기
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <button id="exportRecipeBtn" class="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors shadow-md">
+                        레시피 내보내기
+                    </button>
+                </div>
+                
+                <div class="pt-4">
+                     <div class="flex justify-between items-center mb-2">
+                        <h2 class="text-xl font-semibold">3. 생성된 전체 좌표 목록</h2>
+                        <button id="copyBtn" class="bg-gray-200 text-gray-700 text-xs font-bold py-1 px-2 rounded hover:bg-gray-300">현재 탭 복사</button>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">총 <span id="pointCount">0</span>개의 좌표가 생성되었습니다.</p>
+                    
+                    <!-- Tab UI -->
+                    <div>
+                        <div class="border-b border-gray-200">
+                            <nav id="tab-headers" class="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs"></nav>
+                        </div>
+                        <div id="tab-contents" class="mt-4">
+                            <!-- Tables will be dynamically inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 시각화 -->
+            <div class="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg space-y-6">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <h2 class="text-xl font-semibold">4. 패턴 시각화</h2>
+                        <span id="dieCountDisplay" class="text-base font-medium text-gray-600"></span>
+                    </div>
+                    <div class="flex justify-between items-center mb-2">
+                        <div id="pattern-legend" class="flex flex-wrap gap-x-4 gap-y-1 text-sm"></div>
+                        <div class="flex items-center space-x-4">
+                             <div class="flex items-center">
+                                <input type="checkbox" id="showDieMapToggle" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <label for="showDieMapToggle" class="ml-2 text-sm font-medium text-gray-700">다이 맵 표시</label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="showPathToggle" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
+                                <label for="showPathToggle" class="ml-2 text-sm font-medium text-gray-700">경로 표시</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <canvas id="waferCanvas"></canvas>
+                        <div id="tooltip" class="tooltip"></div>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold mb-4">5. 다이 내부 패턴 맵</h2>
+                    <div class="relative">
+                        <canvas id="intraDieCanvas"></canvas>
+                        <div id="intraDieTooltip" class="tooltip"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
+
+    <script>
+        // DOM 요소
+        const generateBtn = document.getElementById('generateBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const exportRecipeBtn = document.getElementById('exportRecipeBtn');
+        const pointCountSpan = document.getElementById('pointCount');
+        const copyBtn = document.getElementById('copyBtn');
+        const toast = document.getElementById('toast');
+        const patternCanvas = document.getElementById('waferCanvas');
+        const patternCtx = patternCanvas.getContext('2d');
+        const intraDieCanvas = document.getElementById('intraDieCanvas');
+        const intraDieCtx = intraDieCanvas.getContext('2d');
+        const tabHeadersContainer = document.getElementById('tab-headers');
+        const tabContentsContainer = document.getElementById('tab-contents');
+        const calculatePitchBtn = document.getElementById('calculatePitchBtn');
+        const dieCountDisplay = document.getElementById('dieCountDisplay');
+        const tooltip = document.getElementById('tooltip');
+        const intraDieTooltip = document.getElementById('intraDieTooltip');
+        const patternLegend = document.getElementById('pattern-legend');
+        const showPathToggle = document.getElementById('showPathToggle');
+        const showDieMapToggle = document.getElementById('showDieMapToggle');
+        
+        let renderedPoints = [];
+        let renderedIntraDiePoints = [];
+        let lastGeneratedData = null;
+
+        function calculatePitch() {
+            const ref00x = parseFloat(document.getElementById('ref00x').value);
+            const ref00y = parseFloat(document.getElementById('ref00y').value);
+            const ref10x = parseFloat(document.getElementById('ref10x').value);
+            const ref01y = parseFloat(document.getElementById('ref01y').value);
+
+            if ([ref00x, ref00y, ref10x, ref01y].some(isNaN)) {
+                alert("피치 계산을 위한 모든 기준 좌표를 입력해주세요.");
+                return;
+            }
+
+            const pitchX = ref10x - ref00x;
+            const pitchY = ref01y - ref00y;
+
+            document.getElementById('diePitchX').value = pitchX.toFixed(0);
+            document.getElementById('diePitchY').value = pitchY.toFixed(0);
+        }
+
+        function generateCoordinates() {
+            const params = {
+                waferDiameter: parseFloat(document.getElementById('waferDiameter').value),
+                diePitchX: parseFloat(document.getElementById('diePitchX').value),
+                diePitchY: parseFloat(document.getElementById('diePitchY').value),
+            };
+            const waferRadius = params.waferDiameter / 2;
+
+            const colors = ['#2563eb', '#f97316', '#10b981', '#ec4899', '#8b5cf6', '#d97706'];
+            const intraDiePatternsRaw = document.getElementById('intraDiePatterns').value.trim();
+            const intraDiePatterns = intraDiePatternsRaw.split('\n').map((line, index) => {
+                const parts = line.split(',');
+                let patternData = null;
+                if (parts.length >= 4) { // name,x,y,imageUrl
+                    const [name, xStr, yStr, ...imageUrlParts] = parts;
+                    const imageUrl = imageUrlParts.join(',');
+                    const x = parseFloat(xStr);
+                    const y = parseFloat(yStr);
+                    if (!isNaN(x) && !isNaN(y)) patternData = { name: name.trim(), x, y, imageUrl: imageUrl.trim() };
+                } else if (parts.length === 3) { // name,x,y
+                    const [name, xStr, yStr] = parts;
+                    const x = parseFloat(xStr);
+                    const y = parseFloat(yStr);
+                    if (!isNaN(x) && !isNaN(y)) patternData = { name: name.trim(), x, y, imageUrl: null };
+                } else if (parts.length === 2) { // x,y
+                    const [xStr, yStr] = parts;
+                    const x = parseFloat(xStr);
+                    const y = parseFloat(yStr);
+                    if (!isNaN(x) && !isNaN(y)) patternData = { name: null, x, y, imageUrl: null };
+                }
+                if (patternData) {
+                    patternData.color = colors[index % colors.length];
+                }
+                return patternData;
+            }).filter(p => p !== null);
+
+            if (Object.values(params).some(isNaN) || intraDiePatterns.length === 0) {
+                alert("모든 파라미터에 유효한 숫자를 입력하고, 다이 내부 패턴을 1개 이상 입력해주세요.");
+                return;
+            }
+
+            let groupedPoints = {};
+            intraDiePatterns.forEach((pattern, index) => {
+                const patternKey = pattern.name || `Pattern ${index + 1}`;
+                groupedPoints[patternKey] = [];
+            });
+
+            let dieMapData = [];
+            const maxIndexX = Math.ceil(waferRadius / params.diePitchX);
+            const maxIndexY = Math.ceil(waferRadius / params.diePitchY);
+            const maxLayer = Math.max(maxIndexX, maxIndexY);
+
+            let spiralIndices = [];
+            let x = 0, y = 0, dx = 0, dy = -1;
+            for (let i = 0; i < (maxLayer * 2 + 1) ** 2; i++) {
+                if ((-maxLayer <= x && x <= maxLayer) && (-maxLayer <= y && y <= maxLayer)) {
+                    spiralIndices.push({ i: x, j: y });
+                }
+                if (x === y || (x < 0 && x === -y) || (x > 0 && x === 1 - y)) {
+                    [dx, dy] = [-dy, dx];
+                }
+                x += dx;
+                y += dy;
+            }
+
+            spiralIndices.forEach(({ i, j }) => {
+                const dieOriginX = i * params.diePitchX;
+                const dieOriginY = j * params.diePitchY;
+                const onWafer = Math.sqrt(dieOriginX ** 2 + dieOriginY ** 2) <= waferRadius;
+                
+                dieMapData.push({ i, j, onWafer, selected: onWafer });
+
+                if (onWafer) {
+                    intraDiePatterns.forEach((pattern, index) => {
+                        const globalX = dieOriginX + pattern.x;
+                        const globalY = dieOriginY + pattern.y;
+                        const point = { i, j, x: globalX, y: globalY, color: pattern.color };
+                        const patternKey = pattern.name || `Pattern ${index + 1}`;
+                        groupedPoints[patternKey].push(point);
+                    });
+                }
+            });
+
+            lastGeneratedData = { waferRadius, params, intraDiePatterns, groupedPoints, dieMapData };
+            
+            updateUIFromSelection();
+            drawIntraDieVisualization(intraDiePatterns);
+        }
+
+        function updateUIFromSelection() {
+            if (!lastGeneratedData) return;
+
+            const { dieMapData, groupedPoints, intraDiePatterns } = lastGeneratedData;
+            
+            const selectedDies = new Set(
+                dieMapData.filter(d => d.selected).map(d => `${d.i},${d.j}`)
+            );
+
+            let visibleGroupedPoints = {};
+            let totalPointCount = 0;
+            
+            intraDiePatterns.forEach(p => {
+                const key = p.name || `Pattern ${intraDiePatterns.indexOf(p) + 1}`;
+                visibleGroupedPoints[key] = [];
+            });
+
+            for (const patternKey in groupedPoints) {
+                visibleGroupedPoints[patternKey] = groupedPoints[patternKey].filter(p => {
+                    return selectedDies.has(`${p.i},${p.j}`);
+                });
+                totalPointCount += visibleGroupedPoints[patternKey].length;
+            }
+            
+            pointCountSpan.textContent = totalPointCount;
+            dieCountDisplay.textContent = `(총 ${selectedDies.size}개 다이)`;
+            
+            updateResultTabs(visibleGroupedPoints);
+            drawPatternVisualization();
+        }
+
+
+        function updateResultTabs(groupedPoints) {
+            tabHeadersContainer.innerHTML = '';
+            tabContentsContainer.innerHTML = '';
+            let isFirstTab = true;
+
+            Object.keys(groupedPoints).forEach(patternKey => {
+                if (groupedPoints[patternKey].length === 0) return;
+
+                const tabButton = document.createElement('button');
+                tabButton.textContent = patternKey;
+                tabButton.dataset.target = `tab-content-${patternKey.replace(/[\\s(),]/g, '-')}`;
+                tabButton.className = 'whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm rounded-t-md';
+
+                const tabContent = document.createElement('div');
+                tabContent.id = tabButton.dataset.target;
+                tabContent.className = 'table-container';
+                const table = document.createElement('table');
+                table.className = 'data-table';
+                
+                const headerHTML = `<thead><tr><th>Pattern No.</th><th>Grid X</th><th>Grid Y</th><th>X</th><th>Y</th></tr></thead>`;
+                const rowsHTML = groupedPoints[patternKey].map((p, index) => `<tr><td>${index + 1}</td><td>${p.i}</td><td>${p.j}</td><td>${p.x.toFixed(0)}</td><td>${p.y.toFixed(0)}</td></tr>`).join('');
+                table.innerHTML = headerHTML + `<tbody>${rowsHTML}</tbody>`;
+                
+                tabContent.appendChild(table);
+
+                if (isFirstTab) {
+                    tabButton.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
+                    tabContent.style.display = 'block';
+                    isFirstTab = false;
+                } else {
+                    tabButton.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-200');
+                    tabContent.style.display = 'none';
+                }
+
+                tabButton.addEventListener('click', (e) => {
+                    document.querySelectorAll('#tab-headers button').forEach(btn => {
+                        btn.classList.remove('border-blue-500', 'text-blue-600', 'bg-blue-50');
+                        btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-200');
+                    });
+                    document.querySelectorAll('#tab-contents > div').forEach(content => {
+                        content.style.display = 'none';
+                    });
+
+                    e.target.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
+                    document.getElementById(e.target.dataset.target).style.display = 'block';
+                });
+
+                tabHeadersContainer.appendChild(tabButton);
+                tabContentsContainer.appendChild(tabContent);
+            });
+        }
+
+        function drawPatternVisualization() {
+            if (!lastGeneratedData) return;
+            const { waferRadius, params, intraDiePatterns, dieMapData, groupedPoints } = lastGeneratedData;
+            const showPath = showPathToggle.checked;
+            const showDieMap = showDieMapToggle.checked;
+            
+            const canvas = patternCanvas;
+            const ctx = patternCtx;
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientWidth;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            renderedPoints = [];
+            if (dieMapData.length === 0) return;
+
+            const padding = 30;
+            const canvasWidth = Math.max(0, canvas.width - 2 * padding);
+            const canvasHeight = Math.max(0, canvas.height - 2 * padding);
+            
+            const scale = Math.min(canvasWidth / (waferRadius * 2), canvasHeight / (waferRadius * 2));
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            const selectedDies = new Set(
+                dieMapData.filter(d => d.selected).map(d => `${d.i},${d.j}`)
+            );
+
+            if (showDieMap) {
+                const dieWidth = params.diePitchX * scale;
+                const dieHeight = params.diePitchY * scale;
+                dieMapData.forEach(die => {
+                    const dieCenterX = centerX + die.i * params.diePitchX * scale;
+                    const dieCenterY = centerY - die.j * params.diePitchY * scale;
+                    if (die.onWafer) {
+                        ctx.fillStyle = die.selected ? 'rgba(74, 222, 128, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+                    } else {
+                        ctx.fillStyle = 'rgba(209, 213, 219, 0.2)';
+                    }
+                    ctx.fillRect(dieCenterX - dieWidth / 2, dieCenterY - dieHeight / 2, dieWidth, dieHeight);
+                    ctx.strokeStyle = die.selected ? 'rgba(156, 163, 175, 0.5)' : 'rgba(239, 68, 68, 0.4)';
+                    ctx.strokeRect(dieCenterX - dieWidth / 2, dieCenterY - dieHeight / 2, dieWidth, dieHeight);
+                });
+            }
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, waferRadius * scale, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            const allPoints = Object.values(groupedPoints).flat();
+            const visiblePoints = allPoints.filter(p => selectedDies.has(`${p.i},${p.j}`));
+
+            if (showPath) {
+                const pointsByColor = {};
+                visiblePoints.forEach(p => {
+                    if (!pointsByColor[p.color]) pointsByColor[p.color] = [];
+                    pointsByColor[p.color].push(p);
+                });
+
+                for (const color in pointsByColor) {
+                    const pathPoints = pointsByColor[color];
+                    if(pathPoints.length === 0) continue;
+                    ctx.beginPath();
+                    const firstPoint = pathPoints[0];
+                    ctx.moveTo(centerX + firstPoint.x * scale, centerY - firstPoint.y * scale);
+                    for (let i = 1; i < pathPoints.length; i++) {
+                        const p = pathPoints[i];
+                        ctx.lineTo(centerX + p.x * scale, centerY - p.y * scale);
+                    }
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            }
+
+            visiblePoints.forEach(p => {
+                ctx.fillStyle = p.color;
+                const canvasX = centerX + p.x * scale;
+                const canvasY = centerY - p.y * scale;
+                ctx.beginPath();
+                ctx.arc(canvasX, canvasY, 2.5, 0, 2 * Math.PI);
+                ctx.fill();
+                renderedPoints.push({ canvasX, canvasY, data: p });
+            });
+            
+            patternLegend.innerHTML = '';
+            intraDiePatterns.forEach(p => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'flex items-center';
+                legendItem.innerHTML = `<div class="w-3 h-3 rounded-full mr-1.5" style="background-color: ${p.color};"></div><span>${p.name || 'Pattern'}</span>`;
+                patternLegend.appendChild(legendItem);
+            });
+        }
+
+        function drawIntraDieVisualization(patterns) {
+            const canvas = intraDieCanvas;
+            const ctx = intraDieCtx;
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientWidth;
+            
+            renderedIntraDiePoints = [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (patterns.length === 0) return;
+
+            const padding = 30;
+            const xCoords = patterns.map(p => p.x);
+            const yCoords = patterns.map(p => p.y);
+            const xMin = Math.min(...xCoords, 0);
+            const xMax = Math.max(...xCoords, 0);
+            const yMin = Math.min(...yCoords, 0);
+            const yMax = Math.max(...yCoords, 0);
+
+            const dataWidth = xMax - xMin || 1;
+            const dataHeight = yMax - yMin || 1;
+
+            const canvasWidth = Math.max(0, canvas.width - 2 * padding);
+            const canvasHeight = Math.max(0, canvas.height - 2 * padding);
+            
+            const scale = Math.min(canvasWidth / dataWidth, canvasHeight / dataHeight) * 0.8;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            ctx.strokeStyle = '#d1d5db';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height);
+            ctx.moveTo(0, centerY); ctx.lineTo(canvas.width, centerY);
+            ctx.stroke();
+            ctx.fillStyle = '#9ca3af';
+            ctx.fillText('(0,0)', centerX + 15, centerY + 10);
+
+            patterns.forEach(p => {
+                const canvasX = centerX + p.x * scale;
+                const canvasY = centerY - p.y * scale;
+                
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(canvasX, canvasY, 4, 0, 2 * Math.PI);
+                ctx.fill();
+
+                ctx.fillStyle = '#374151';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                ctx.font = '12px sans-serif';
+                const label = p.name ? `${p.name} (${p.x},${p.y})` : `(${p.x},${p.y})`;
+                ctx.fillText(label, canvasX + 8, canvasY - 8);
+                
+                renderedIntraDiePoints.push({ canvasX, canvasY, data: p });
+            });
+        }
+        
+        async function exportToExcel() {
+            if (!lastGeneratedData) {
+                alert("먼저 좌표를 생성해주세요.");
+                return;
+            }
+
+            const { params, intraDiePatterns, groupedPoints, dieMapData } = lastGeneratedData;
+            const workbook = new ExcelJS.Workbook();
+
+            // --- Filter data based on selection ---
+            const selectedDies = new Set(
+                dieMapData.filter(d => d.selected).map(d => `${d.i},${d.j}`)
+            );
+            let visibleGroupedPoints = {};
+            for (const patternKey in groupedPoints) {
+                visibleGroupedPoints[patternKey] = groupedPoints[patternKey].filter(p => 
+                    selectedDies.has(`${p.i},${p.j}`)
+                );
+            }
+            // ---
+
+            // Summary Sheet
+            const summarySheet = workbook.addWorksheet('Summary');
+            summarySheet.columns = [ { header: 'Parameter', key: 'param', width: 25 }, { header: 'Value', key: 'value', width: 25 } ];
+            summarySheet.addRow({ param: 'Wafer Diameter (µm)', value: params.waferDiameter });
+            summarySheet.addRow({ param: 'Die Pitch X (µm)', value: params.diePitchX });
+            summarySheet.addRow({ param: 'Die Pitch Y (µm)', value: params.diePitchY });
+            summarySheet.addRow({ param: 'Selected Die Count', value: selectedDies.size });
+            summarySheet.addRow({});
+            summarySheet.addRow({ param: 'Intra-Die Patterns' });
+            summarySheet.getCell('A6').font = { bold: true };
+            intraDiePatterns.forEach(p => {
+                summarySheet.addRow({ param: p.name || 'Pattern', value: `(${p.x}, ${p.y})` });
+            });
+
+            // Data Sheets
+            for (const patternKey in visibleGroupedPoints) {
+                if (visibleGroupedPoints[patternKey].length === 0) continue;
+                const sheet = workbook.addWorksheet(patternKey.substring(0, 31)); // Sheet name limit is 31 chars
+                sheet.columns = [
+                    { header: 'Pattern No.', key: 'no', width: 12 },
+                    { header: 'Grid X', key: 'gx', width: 10 },
+                    { header: 'Grid Y', key: 'gy', width: 10 },
+                    { header: 'X', key: 'x', width: 15 },
+                    { header: 'Y', key: 'y', width: 15 },
+                ];
+                visibleGroupedPoints[patternKey].forEach((p, index) => {
+                    sheet.addRow({ no: index + 1, gx: p.i, gy: p.j, x: p.x, y: p.y });
+                });
+            }
+            
+            // Visualization Sheet
+            const vizSheet = workbook.addWorksheet('Visualizations');
+            // Redraw canvas for export to ensure it reflects current state
+            drawPatternVisualization(); 
+            const patternImage = patternCanvas.toDataURL('image/png');
+            const intraDieImage = intraDieCanvas.toDataURL('image/png');
+
+            const patternImageId = workbook.addImage({ base64: patternImage, extension: 'png' });
+            const intraDieImageId = workbook.addImage({ base64: intraDieImage, extension: 'png' });
+            
+            vizSheet.getCell('A1').value = 'Pattern Visualization (Selection Applied)';
+            vizSheet.getCell('A1').font = { bold: true, size: 16 };
+            vizSheet.addImage(patternImageId, {
+                tl: { col: 0, row: 2 },
+                ext: { width: 500, height: 500 }
+            });
+
+            vizSheet.getCell('J1').value = 'Intra-Die Pattern Map';
+            vizSheet.getCell('J1').font = { bold: true, size: 16 };
+            vizSheet.addImage(intraDieImageId, {
+                tl: { col: 9, row: 2 },
+                ext: { width: 300, height: 300 }
+            });
+
+            // Download
+            workbook.xlsx.writeBuffer().then(buffer => {
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'wafer_pattern_report_selected.xlsx';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            });
+        }
+
+        function handleDieSelection(event) {
+            if (!lastGeneratedData) return;
+
+            const { dieMapData, params, waferRadius } = lastGeneratedData;
+            const rect = patternCanvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            const padding = 30;
+            const canvasWidth = Math.max(0, patternCanvas.width - 2 * padding);
+            const canvasHeight = Math.max(0, patternCanvas.height - 2 * padding);
+            const scale = Math.min(canvasWidth / (waferRadius * 2), canvasHeight / (waferRadius * 2));
+            const centerX = patternCanvas.width / 2;
+            const centerY = patternCanvas.height / 2;
+            const dieWidth = params.diePitchX * scale;
+            const dieHeight = params.diePitchY * scale;
+
+            let clickedDie = null;
+            for (const die of dieMapData) {
+                if (!die.onWafer) continue;
+
+                const dieCenterX = centerX + die.i * params.diePitchX * scale;
+                const dieCenterY = centerY - die.j * params.diePitchY * scale;
+                const dieStartX = dieCenterX - dieWidth / 2;
+                const dieStartY = dieCenterY - dieHeight / 2;
+
+                if (mouseX >= dieStartX && mouseX <= dieStartX + dieWidth &&
+                    mouseY >= dieStartY && mouseY <= dieStartY + dieHeight) {
+                    clickedDie = die;
+                    break;
+                }
+            }
+
+            if (clickedDie) {
+                clickedDie.selected = !clickedDie.selected;
+                updateUIFromSelection();
+            }
+        }
+
+        function exportRecipe() {
+            if (!lastGeneratedData) {
+                alert("먼저 좌표를 생성해주세요.");
+                return;
+            }
+
+            const sampleSN = prompt("이 레시피의 샘플 S/N을 입력하세요:", "Sample-001");
+            if (!sampleSN) {
+                alert("샘플 S/N이 입력되지 않아 취소되었습니다.");
+                return;
+            }
+
+            const { params, intraDiePatterns, dieMapData, groupedPoints } = lastGeneratedData;
+
+            const selectedDies = new Set(
+                dieMapData.filter(d => d.selected).map(d => `${d.i},${d.j}`)
+            );
+            
+            let visibleGroupedPoints = {};
+            for (const patternKey in groupedPoints) {
+                visibleGroupedPoints[patternKey] = groupedPoints[patternKey].filter(p => 
+                    selectedDies.has(`${p.i},${p.j}`)
+                );
+            }
+
+            const recipe = {
+                recipeVersion: "1.0",
+                sampleSN: sampleSN,
+                exportTimestamp: new Date().toISOString(),
+                inputs: {
+                    waferDiameter: params.waferDiameter,
+                    diePitchX: params.diePitchX,
+                    diePitchY: params.diePitchY,
+                    intraDiePatternsRaw: document.getElementById('intraDiePatterns').value,
+                },
+                selection: {
+                    selectedDieIndices: Array.from(selectedDies)
+                },
+                results: {
+                    visibleGroupedPoints: visibleGroupedPoints,
+                    selectedDieCount: selectedDies.size,
+                    totalPointCount: Object.values(visibleGroupedPoints).reduce((acc, val) => acc + val.length, 0)
+                }
+            };
+
+            const jsonString = JSON.stringify(recipe, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${sampleSN}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            alert(`'${sampleSN}.json' 레시피 파일이 저장되었습니다.`);
+        }
+
+
+        // 이벤트 리스너
+        calculatePitchBtn.addEventListener('click', calculatePitch);
+        generateBtn.addEventListener('click', generateCoordinates);
+        exportBtn.addEventListener('click', exportToExcel);
+        exportRecipeBtn.addEventListener('click', exportRecipe);
+        showPathToggle.addEventListener('change', () => drawPatternVisualization());
+        showDieMapToggle.addEventListener('change', () => drawPatternVisualization());
+        patternCanvas.addEventListener('click', handleDieSelection);
+        
+        copyBtn.addEventListener('click', () => {
+            const activeTable = document.querySelector('#tab-contents > div:not([style*="display: none"]) table');
+            if (!activeTable) return;
+            
+            let tsvContent = '';
+            activeTable.querySelectorAll('tr').forEach(row => {
+                const rowData = [];
+                row.querySelectorAll('th, td').forEach(cell => {
+                    rowData.push(cell.innerText);
+                });
+                tsvContent += rowData.join('\t') + '\n';
+            });
+
+            navigator.clipboard.writeText(tsvContent).then(() => {
+                toast.classList.add('show');
+                setTimeout(() => { toast.classList.remove('show'); }, 2000);
+            });
+        });
+        
+        patternCanvas.addEventListener('mousemove', (e) => {
+            const rect = patternCanvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            let foundPoint = null;
+            for (const p of renderedPoints) {
+                const dist = Math.sqrt((p.canvasX - mouseX)**2 + (p.canvasY - mouseY)**2);
+                if (dist < 5) {
+                    foundPoint = p;
+                    break;
+                }
+            }
+
+            if (foundPoint) {
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${patternCanvas.offsetLeft + foundPoint.canvasX + 10}px`;
+                tooltip.style.top = `${patternCanvas.offsetTop + foundPoint.canvasY - 10}px`;
+                tooltip.innerHTML = `Grid: (${foundPoint.data.i}, ${foundPoint.data.j})<br>X: ${foundPoint.data.x.toFixed(0)}, Y: ${foundPoint.data.y.toFixed(0)}`;
+            } else {
+                tooltip.style.display = 'none';
+            }
+        });
+
+        patternCanvas.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+        });
+        
+        intraDieCanvas.addEventListener('mousemove', (e) => {
+            const rect = intraDieCanvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            let foundPoint = null;
+            for (const p of renderedIntraDiePoints) {
+                const dist = Math.sqrt((p.canvasX - mouseX)**2 + (p.canvasY - mouseY)**2);
+                if (dist < 5) {
+                    foundPoint = p;
+                    break;
+                }
+            }
+
+            if (foundPoint) {
+                intraDieTooltip.style.display = 'block';
+                intraDieTooltip.style.left = `${intraDieCanvas.offsetLeft + foundPoint.canvasX + 10}px`;
+                intraDieTooltip.style.top = `${intraDieCanvas.offsetTop + foundPoint.canvasY - 10}px`;
+                
+                let tooltipHTML = '';
+                if (foundPoint.data.imageUrl) {
+                    tooltipHTML += `<img src="${foundPoint.data.imageUrl}" alt="${foundPoint.data.name || 'Pattern'}">`;
+                }
+                tooltipHTML += `${foundPoint.data.name || 'Pattern'}<br>(${foundPoint.data.x}, ${foundPoint.data.y})`;
+                intraDieTooltip.innerHTML = tooltipHTML;
+
+            } else {
+                intraDieTooltip.style.display = 'none';
+            }
+        });
+
+        intraDieCanvas.addEventListener('mouseleave', () => {
+            intraDieTooltip.style.display = 'none';
+        });
+
+
+        window.addEventListener('DOMContentLoaded', generateCoordinates);
+        window.addEventListener('resize', generateCoordinates);
+    </script>
+</body>
+</html>

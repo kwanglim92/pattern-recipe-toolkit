@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>통합 패턴 분석 시스템</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%); background-color: #2d3748;
+            color: white; padding: 10px 20px; border-radius: 8px;
+            opacity: 0; transition: opacity 0.3s ease-in-out; z-index: 1000;
+        }
+        .toast.show { opacity: 1; }
+        canvas { background-color: #f9fafb; border-radius: 0.5rem; border: 1px solid #e5e7eb; cursor: crosshair; }
+        .tooltip {
+            display: none; position: absolute; background-color: rgba(0, 0, 0, 0.8);
+            color: white; padding: 8px; border-radius: 5px; font-size: 12px;
+            pointer-events: none; z-index: 1000; max-width: 200px; text-align: center;
+        }
+        .tooltip img { max-width: 100px; max-height: 100px; margin: 0 auto 5px; display: block; border-radius: 3px; }
+        .table-container { max-height: 20rem; overflow-y: auto; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; font-size: 0.8rem; }
+        .data-table th { background-color: #f3f4f6; font-weight: 600; }
+        /* Tab styles */
+        .tab-button.active {
+            border-color: #3b82f6;
+            color: #2563eb;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">통합 패턴 분석 시스템</h1>
+            <p class="mt-2 text-gray-600">정형/비정형 샘플 레시피를 분석, 관리하고 공유합니다.</p>
+        </header>
+
+        <!-- Main Tab Navigation -->
+        <div class="mb-4 border-b border-gray-200">
+            <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                <button data-tab-target="dashboard" class="tab-button whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm">레시피 대시보드</button>
+                <button data-tab-target="structured" class="tab-button whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm">정형 패턴 편집기</button>
+                <button data-tab-target="unstructured" class="tab-button whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm">비정형 패턴 편집기</button>
+            </nav>
+        </div>
+
+        <!-- Tab Content Panels -->
+        <div id="dashboard" class="tab-content">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-4">레시피 대시보드</h2>
+                <div class="flex space-x-2 mb-4">
+                    <label class="w-full flex items-center justify-center bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors shadow-md cursor-pointer">
+                        <span>레시피 파일 불러오기 (.json)</span>
+                        <input type="file" id="recipeFileInput" multiple accept=".json" class="hidden">
+                    </label>
+                    <button id="exportViewerBtn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-colors shadow-md">뷰어(HTML) 내보내기</button>
+                </div>
+                <div id="dashboard-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <!-- Recipe cards will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <div id="structured" class="tab-content hidden">
+            <!-- Structured (Die) Pattern Editor will be here -->
+        </div>
+
+        <div id="unstructured" class="tab-content hidden">
+            <!-- Unstructured (Clustering) Pattern Analyzer will be here -->
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+    // --- Global State & Initialization ---
+    let dashboardRecipes = {}; // In-memory store for loaded recipes
+
+    const RECIPE_TYPE = {
+        STRUCTURED: 'structured',
+        UNSTRUCTURED: 'unstructured'
+    };
+
+    // --- Tab Switching Logic ---
+    const tabs = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            tabContents.forEach(content => {
+                if (content.id === tab.dataset.tabTarget) {
+                    content.classList.remove('hidden');
+                } else {
+                    content.classList.add('hidden');
+                }
+            });
+        });
+    });
+
+    function activateTab(tabName) {
+        document.querySelector(`button[data-tab-target="${tabName}"]`).click();
+    }
+
+    // --- Dashboard Logic ---
+    const recipeFileInput = document.getElementById('recipeFileInput');
+    const dashboardCardsContainer = document.getElementById('dashboard-cards');
+    const exportViewerBtn = document.getElementById('exportViewerBtn');
+
+    recipeFileInput.addEventListener('change', (event) => {
+        const files = event.target.files;
+        if (!files.length) return;
+
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const recipe = JSON.parse(e.target.result);
+                    if (recipe.recipeName && (recipe.recipeType === RECIPE_TYPE.STRUCTURED || recipe.recipeType === RECIPE_TYPE.UNSTRUCTURED)) {
+                        dashboardRecipes[recipe.recipeName] = recipe;
+                    } else {
+                        showToast(`'${file.name}' 파일이 유효한 레시피 형식이 아닙니다.`, 'error');
+                    }
+                } catch (err) {
+                    console.error("Error parsing recipe file:", err);
+                    showToast(`'${file.name}' 파일 처리 중 오류 발생: ${err.message}`, 'error');
+                }
+                renderDashboard();
+            };
+            reader.readAsText(file);
+        });
+        event.target.value = ''; // Reset file input
+    });
+
+    function renderDashboard() {
+        dashboardCardsContainer.innerHTML = '';
+        Object.values(dashboardRecipes).forEach(recipe => {
+            const card = document.createElement('div');
+            card.className = 'p-4 border rounded-lg shadow-sm hover:shadow-md cursor-pointer transition-shadow';
+            card.innerHTML = `
+                <h3 class="font-bold text-lg">${recipe.recipeName}</h3>
+                <span class="text-sm px-2 py-1 rounded-full ${recipe.recipeType === RECIPE_TYPE.STRUCTURED ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}">
+                    ${recipe.recipeType === RECIPE_TYPE.STRUCTURED ? '정형' : '비정형'}
+                </span>
+            `;
+            card.addEventListener('click', () => {
+                if (recipe.recipeType === RECIPE_TYPE.STRUCTURED) {
+                    activateTab('structured');
+                    s_loadRecipeToUI(recipe.recipeName);
+                    s_generateCoordinates(true);
+                } else if (recipe.recipeType === RECIPE_TYPE.UNSTRUCTURED) {
+                    activateTab('unstructured');
+                    u_loadRecipeToUI(recipe.recipeName);
+                    u_analyze();
+                }
+            });
+            dashboardCardsContainer.appendChild(card);
+        });
+    }
+
+    // --- Initial Load ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Inject HTML for editors
+        document.getElementById('structured').innerHTML = structuredEditorHTML;
+        document.getElementById('unstructured').innerHTML = unstructuredAnalyzerHTML;
+
+        // Initialize both scripts
+        initializeStructuredEditor();
+        initializeUnstructuredAnalyzer();
+
+        // Activate dashboard by default
+        activateTab('dashboard');
+    });
+
+    // --- Viewer Export Logic ---
+    exportViewerBtn.addEventListener('click', () => {
+        if (Object.keys(dashboardRecipes).length === 0) {
+            showToast("먼저 대시보드에 레시피를 하나 이상 불러와주세요.", "error");
+            return;
+        }
+
+        // Inject the current dashboard recipes into the viewer template
+        const viewerHTML = viewerTemplate.replace(
+            '// RECIPE_DATA_PLACEHOLDER',
+            `const sampleDatabase = ${JSON.stringify(dashboardRecipes, null, 2)};`
+        )
+        .replace(
+            '// VIEWER_SCRIPT_PLACEHOLDER',
+            viewerScript
+        );
+
+
+        const blob = new Blob([viewerHTML], { type: 'text/html' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Pattern_Recipe_Viewer.html';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    });
+    
+    // --- HTML TEMPLATES ---
+
+    const structuredEditorHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg space-y-4">
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">1. 레시피 이름</h2>
+                    <input type="text" id="s_recipeName" placeholder="저장할 샘플 이름 입력 (예: Sample-C)" class="w-full mt-2 p-2 border rounded-md">
+                    <button id="s_saveRecipeBtn" class="w-full mt-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors">현재 레시피 저장 (.json)</button>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold mb-2 border-t pt-4">2. 웨이퍼 및 다이 정보 입력</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2">
+                            <label for="s_waferDiameter" class="text-sm font-medium">웨이퍼 직경 (µm)</label>
+                            <input type="number" id="s_waferDiameter" value="200000" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label for="s_diePitchX" class="text-sm font-medium">다이 피치 X (µm)</label>
+                            <input type="number" id="s_diePitchX" value="19090" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label for="s_diePitchY" class="text-sm font-medium">다이 피치 Y (µm)</label>
+                            <input type="number" id="s_diePitchY" value="17290" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <h3 class="text-lg font-semibold mb-2 text-gray-800">다이 피치 자동 계산 (옵션)</h3>
+                        <div class="space-y-2">
+                            <div class="grid grid-cols-3 gap-2 items-center"><label class="text-sm col-span-1">(0,0) 다이</label><input type="number" id="s_ref00x" placeholder="X" class="w-full p-2 border rounded-md col-span-1"><input type="number" id="s_ref00y" placeholder="Y" class="w-full p-2 border rounded-md col-span-1"></div>
+                            <div class="grid grid-cols-3 gap-2 items-center"><label class="text-sm col-span-1">(1,0) 다이</label><input type="number" id="s_ref10x" placeholder="X" class="w-full p-2 border rounded-md col-span-1"><input type="number" id="s_ref10y" placeholder="Y" class="w-full p-2 border rounded-md col-span-1"></div>
+                            <div class="grid grid-cols-3 gap-2 items-center"><label class="text-sm col-span-1">(0,1) 다이</label><input type="number" id="s_ref01x" placeholder="X" class="w-full p-2 border rounded-md col-span-1"><input type="number" id="s_ref01y" placeholder="Y" class="w-full p-2 border rounded-md col-span-1"></div>
+                        </div>
+                        <button id="s_calculatePitchBtn" class="w-full mt-3 bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600">피치 계산</button>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">3. 다이 내부 패턴 좌표 입력</h2>
+                    <p class="text-sm text-gray-600 mb-2">\`이름,x,y,이미지URL\` 형식으로 입력하세요.</p>
+                    <textarea id="s_intraDiePatterns" class="w-full h-32 p-3 border rounded-md font-mono text-sm" placeholder="Center,-1312,-80,https://..."></textarea>
+                </div>
+                 <div class="flex space-x-2">
+                    <button id="s_generateBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700">좌표 생성/미리보기</button>
+                    <button id="s_exportBtn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700">엑셀 내보내기</button>
+                </div>
+                <div class="pt-4">
+                     <div class="flex justify-between items-center mb-2"><h2 class="text-xl font-semibold">4. 생성된 전체 좌표 목록</h2><button id="s_copyBtn" class="bg-gray-200 text-gray-700 text-xs font-bold py-1 px-2 rounded hover:bg-gray-300">현재 탭 복사</button></div>
+                    <p class="text-sm text-gray-600 mb-2">총 <span id="s_pointCount">0</span>개의 좌표가 생성되었습니다.</p>
+                    <div>
+                        <div class="border-b border-gray-200"><nav id="s_tab-headers" class="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs"></nav></div>
+                        <div id="s_tab-contents" class="mt-4"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg space-y-6">
+                <div>
+                    <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-semibold">5. 다이 맵 (클릭하여 활성/비활성)</h2><button id="s_applyDieSelectionBtn" class="bg-blue-500 text-white font-bold py-1 px-3 rounded-lg hover:bg-blue-600">선택 사항 적용</button></div>
+                    <div class="relative">
+                        <canvas id="s_dieMapCanvas"></canvas>
+                        <div id="s_dieMapTooltip" class="tooltip"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-2"><h2 class="text-xl font-semibold">6. 패턴 시각화</h2><span id="s_dieCountDisplay" class="text-base font-medium text-gray-600"></span></div>
+                    <div class="flex justify-between items-center mb-2">
+                        <div id="s_pattern-legend" class="flex flex-wrap gap-x-4 gap-y-1 text-sm"></div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="s_showPathToggle" class="h-4 w-4 rounded" checked><label for="s_showPathToggle" class="ml-2 text-sm">경로 표시</label>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <canvas id="s_waferCanvas"></canvas>
+                        <div id="s_tooltip" class="tooltip"></div>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold mb-4">7. 다이 내부 패턴 맵</h2>
+                    <div class="relative">
+                        <canvas id="s_intraDieCanvas"></canvas>
+                        <div id="s_intraDieTooltip" class="tooltip"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const unstructuredAnalyzerHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg space-y-4">
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">1. 레시피 이름</h2>
+                    <input type="text" id="u_recipeName" placeholder="저장할 샘플 이름 입력" class="w-full mt-2 p-2 border rounded-md">
+                    <button id="u_saveRecipeBtn" class="w-full mt-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700">현재 레시피 저장 (.json)</button>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold mb-2 border-t pt-4">2. 분석 파라미터 및 데이터 입력</h2>
+                    <div>
+                        <label for="u_clusterRadius" class="text-sm font-medium">클러스터 인식 반경 (µm)</label>
+                        <input type="number" id="u_clusterRadius" value="1000" class="w-full mt-1 p-2 border rounded-md">
+                    </div>
+                    <div class="mt-2">
+                        <label for="u_rawData" class="text-sm font-medium">전체 좌표 데이터 입력 (X,Y)</label>
+                        <textarea id="u_rawData" class="w-full h-48 mt-1 p-3 border rounded-md font-mono text-sm" placeholder="100,100\\n150,150\\n..."></textarea>
+                    </div>
+                </div>
+                 <div class="flex space-x-2">
+                    <button id="u_analyzeBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700">분석 실행</button>
+                    <button id="u_exportBtn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700">엑셀 내보내기</button>
+                </div>
+                <div class="pt-4">
+                     <h2 class="text-xl font-semibold">3. 분석 결과 요약</h2>
+                     <div id="u_summary-panel" class="p-4 bg-gray-50 rounded-lg text-sm space-y-2">
+                        <p><strong>발견된 클러스터 수:</strong> <span id="u_cluster-count">0</span></p>
+                        <div>
+                            <p><strong>주요 반복 벡터 (ΔX, ΔY):</strong></p>
+                            <ul id="u_vector-list" class="list-disc list-inside ml-2 text-gray-700"><li>결과 없음</li></ul>
+                        </div>
+                     </div>
+                </div>
+            </div>
+            <div class="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg space-y-6">
+                <div>
+                    <h2 class="text-xl font-semibold mb-4">4. 클러스터 시각화</h2>
+                    <div class="relative">
+                        <canvas id="u_clusterCanvas"></canvas>
+                        <div id="u_tooltip" class="tooltip"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const viewerTemplate = `
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>생산용 패턴 레시피 뷰어</title>
+            <script src="https://cdn.tailwindcss.com"><\/script>
+            <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"><\/script>
+            <style>
+                body { font-family: 'Noto Sans KR', sans-serif; }
+                .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background-color: #2d3748; color: white; padding: 10px 20px; border-radius: 8px; opacity: 0; transition: opacity 0.3s ease-in-out; z-index: 1000; }
+                .toast.show { opacity: 1; }
+                canvas { background-color: #f9fafb; border-radius: 0.5rem; border: 1px solid #e5e7eb; cursor: crosshair; }
+                .tooltip { display: none; position: absolute; background-color: rgba(0, 0, 0, 0.8); color: white; padding: 8px; border-radius: 5px; font-size: 12px; pointer-events: none; z-index: 1000; max-width: 200px; text-align: center; }
+                .tooltip img { max-width: 100px; max-height: 100px; margin: 0 auto 5px; display: block; border-radius: 3px; }
+                .table-container { max-height: 20rem; overflow-y: auto; }
+                .data-table { width: 100%; border-collapse: collapse; }
+                .data-table th, .data-table td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; font-size: 0.8rem; }
+                .data-table th { background-color: #f3f4f6; font-weight: 600; }
+            </style>
+        </head>
+        <body class="bg-gray-100 text-gray-800">
+            <div class="container mx-auto p-4 md:p-8">
+                <header class="text-center mb-8">
+                    <h1 class="text-3xl md:text-4xl font-bold text-gray-900">생산용 패턴 레시피 뷰어</h1>
+                    <p class="mt-2 text-gray-600">검증된 샘플의 패턴 정보를 조회하고 데이터를 내보냅니다.</p>
+                </header>
+                <div id="viewer-content" class="hidden">
+                    <!-- Viewer content will be shown after selection -->
+                </div>
+                <div id="selector-screen">
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h2 class="text-2xl font-bold mb-4">레시피 선택</h2>
+                        <p class="text-gray-600 mb-4">조회할 샘플 레시피를 선택해주세요.</p>
+                        <div id="viewer-dashboard-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="toast" class="toast"></div>
+            <script>
+                // RECIPE_DATA_PLACEHOLDER
+                // VIEWER_SCRIPT_PLACEHOLDER
+            <\/script>
+        </body>
+        </html>
+    `;
+
+    // --- SCRIPT INITIALIZERS ---
+    
+    function initializeStructuredEditor() {
+        // --- Element References ---
+        const waferDiameterInput = document.getElementById('s_waferDiameter');
+        const diePitchXInput = document.getElementById('s_diePitchX');
+        const diePitchYInput = document.getElementById('s_diePitchY');
+        const intraDiePatternsTextarea = document.getElementById('s_intraDiePatterns');
+
+        // Pitch calculation elements
+        const ref00xInput = document.getElementById('s_ref00x');
+        const ref00yInput = document.getElementById('s_ref00y');
+        const ref10xInput = document.getElementById('s_ref10x');
+        const ref01yInput = document.getElementById('s_ref01y');
+        const calculatePitchBtn = document.getElementById('s_calculatePitchBtn');
+
+        const generateBtn = document.getElementById('s_generateBtn');
+
+        // --- Event Listeners ---
+        const applyDieSelectionBtn = document.getElementById('s_applyDieSelectionBtn');
+        const dieMapCanvas = document.getElementById('s_dieMapCanvas');
+
+        applyDieSelectionBtn.addEventListener('click', s_applyDieSelection);
+
+
+        // 1. Pitch Calculation Logic
+        calculatePitchBtn.addEventListener('click', () => {
+            const ref00x = parseFloat(ref00xInput.value);
+            const ref00y = parseFloat(ref00yInput.value);
+            const ref10x = parseFloat(ref10xInput.value);
+            const ref01y = parseFloat(ref01yInput.value);
+
+            if (isNaN(ref00x) || isNaN(ref00y) || isNaN(ref10x) || isNaN(ref01y)) {
+                showToast("피치 계산을 위한 모든 참조 다이 좌표를 숫자로 입력해주세요.", "error");
+                return;
+            }
+
+            // Pitch X is the difference in X between (0,0) and (1,0)
+            // Pitch Y is the difference in Y between (0,0) and (0,1)
+            const calculatedPitchX = ref10x - ref00x;
+            const calculatedPitchY = ref01y - ref00y;
+
+            diePitchXInput.value = calculatedPitchX;
+            diePitchYInput.value = calculatedPitchY;
+
+            showToast(`피치 계산 완료: X=${calculatedPitchX}µm, Y=${calculatedPitchY}µm`, "success");
+
+            // Automatically trigger preview update after calculation
+            s_generateCoordinates(true);
+        });
+
+        // 2. Main "Generate" button
+        generateBtn.addEventListener('click', () => s_generateCoordinates(true));
+
+        // 3. Auto-update preview on parameter change for better UX
+        const inputsForRegeneration = [waferDiameterInput, diePitchXInput, diePitchYInput, intraDiePatternsTextarea];
+        inputsForRegeneration.forEach(input => {
+            input.addEventListener('change', () => s_generateCoordinates(true));
+        });
+
+        // 4. Die Map Interaction
+        dieMapCanvas.addEventListener('click', (e) => {
+            if (!s_generatedData) return;
+
+            const { canvas, scale, offsetX, offsetY, dieSize } = s_getCanvasDrawingContext(dieMapCanvas, s_generatedData, 0.9);
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const ix = Math.round((x - offsetX) / (dieSize * scale));
+            const iy = Math.round((y - offsetY) / (dieSize * scale));
+
+            const key = `${ix}_${iy}`;
+            if (key in s_dieSelectionState) {
+                s_dieSelectionState[key] = !s_dieSelectionState[key]; // Toggle state
+                s_drawDieMap(); // Redraw with new selection state
+            }
+        });
+
+        s_handleCanvasInteraction(
+            dieMapCanvas,
+            document.getElementById('s_dieMapTooltip'),
+            (x, y) => { // findItem function
+                if (!s_generatedData) return null;
+                const { scale, offsetX, offsetY, dieSize } = s_getCanvasDrawingContext(dieMapCanvas, s_generatedData, 0.9);
+                const ix = Math.round((x - offsetX) / (dieSize * scale));
+                const iy = Math.round((y - offsetY) / (dieSize * scale));
+                const key = `${ix}_${iy}`;
+                return (key in s_dieSelectionState) ? { ix, iy } : null;
+            },
+            (item) => `Die (${item.ix}, ${item.iy})` // formatTooltip function
+        );
+    }
+
+    function initializeUnstructuredAnalyzer() {
+        // ... (This function will contain the full JS for the unstructured analyzer)
+    }
+
+    // --- Viewer Script (to be injected) ---
+    const viewerScript = `
+        // All viewer-specific JS logic goes here
+    `;
+
+    // --- Structured Editor Core Logic ---
+    let s_generatedData = null; // Store generated data for reuse (e.g., export)
+    let s_dieSelectionState = {}; // Stores { "ix_iy": boolean } for die selection
+
+    function s_generateCoordinates(isPreview = false) {
+        // 1. Get all input values
+        const waferDiameter = parseFloat(document.getElementById('s_waferDiameter').value);
+        const pitchX = parseFloat(document.getElementById('s_diePitchX').value);
+        const pitchY = parseFloat(document.getElementById('s_diePitchY').value);
+        const intraDiePatternsRaw = document.getElementById('s_intraDiePatterns').value;
+
+        // 2. Validate inputs
+        if (isNaN(waferDiameter) || isNaN(pitchX) || isNaN(pitchY) || pitchX <= 0 || pitchY <= 0) {
+            showToast("웨이퍼 및 다이 정보가 유효하지 않습니다.", "error");
+            return null;
+        }
+
+        // 3. Parse intra-die patterns
+        const intraDiePatterns = intraDiePatternsRaw.split('\n').filter(line => line.trim() !== '').map(line => {
+            const parts = line.split(',');
+            if (parts.length < 3) return null;
+            const name = parts[0].trim();
+            const x = parseFloat(parts[1]);
+            const y = parseFloat(parts[2]);
+            const imageUrl = parts.length > 3 ? parts[3].trim() : null;
+            if (name && !isNaN(x) && !isNaN(y)) {
+                return { name, x, y, imageUrl };
+            }
+            return null;
+        }).filter(p => p !== null);
+
+        if (intraDiePatterns.length === 0) {
+            showToast("유효한 다이 내부 패턴이 없습니다. '이름,x,y' 형식으로 입력해주세요.", "error");
+            return null;
+        }
+
+        // 4. Generate die coordinates
+        const radius = waferDiameter / 2;
+        const maxIndexX = Math.floor(radius / pitchX);
+        const maxIndexY = Math.floor(radius / pitchY);
+        
+        let allPoints = {};
+        intraDiePatterns.forEach(p => allPoints[p.name] = []);
+        let activeDies = [];
+
+        for (let ix = -maxIndexX; ix <= maxIndexX; ix++) {
+            for (let iy = -maxIndexY; iy <= maxIndexY; iy++) {
+                const dieCenterX = ix * pitchX;
+                const dieCenterY = iy * pitchY;
+
+                if (Math.sqrt(dieCenterX**2 + dieCenterY**2) <= radius) {
+                    activeDies.push({ ix, iy });
+                    intraDiePatterns.forEach(pattern => {
+                        allPoints[pattern.name].push({
+                            dieX: ix,
+                            dieY: iy,
+                            globalX: dieCenterX + pattern.x,
+                            globalY: dieCenterY + pattern.y
+                        });
+                    });
+                }
+            }
+        }
+
+        // Initialize selection state - all dies are active by default
+        s_dieSelectionState = {};
+        activeDies.forEach(die => {
+            s_dieSelectionState[`${die.ix}_${die.iy}`] = true;
+        });
+
+        s_generatedData = { allPoints, activeDies, intraDiePatterns, waferDiameter, pitchX, pitchY };
+        
+        // Update all UI elements with the full, unfiltered data
+        updateStructuredUI(s_generatedData);
+
+        if (isPreview) {
+            const totalPoints = Object.values(allPoints).reduce((sum, points) => sum + points.length, 0);
+            showToast(`${totalPoints}개의 좌표 미리보기가 생성되었습니다.`, "success");
+        }
+        return s_generatedData;
+    }
+
+    function s_applyDieSelection() {
+        if (!s_generatedData) {
+            showToast("먼저 좌표를 생성해주세요.", "error");
+            return;
+        }
+
+        // Filter activeDies and allPoints based on s_dieSelectionState
+        const filteredActiveDies = s_generatedData.activeDies.filter(die => {
+            return s_dieSelectionState[`${die.ix}_${die.iy}`];
+        });
+
+        const filteredAllPoints = {};
+        Object.keys(s_generatedData.allPoints).forEach(patternName => {
+            filteredAllPoints[patternName] = s_generatedData.allPoints[patternName].filter(point => {
+                return s_dieSelectionState[`${point.dieX}_${point.dieY}`];
+            });
+        });
+
+        const filteredData = {
+            ...s_generatedData,
+            activeDies: filteredActiveDies,
+            allPoints: filteredAllPoints,
+        };
+
+        // Update the UI with filtered data
+        updateStructuredResultTabs(filteredData);
+        s_drawWaferPattern(filteredData); // Redraw main pattern with filtered data
+        
+        // Update counts
+        const dieCountDisplay = document.getElementById('s_dieCountDisplay');
+        const pointCountEl = document.getElementById('s_pointCount');
+        const totalPoints = Object.values(filteredAllPoints).reduce((sum, arr) => sum + arr.length, 0);
+        dieCountDisplay.textContent = `활성 다이: ${filteredActiveDies.length}개`;
+        pointCountEl.textContent = totalPoints;
+
+        showToast(`선택 사항 적용 완료. 활성 다이: ${filteredActiveDies.length}개`, "success");
+    }
+
+    function updateStructuredUI(data) {
+        updateStructuredResultTabs(data);
+        s_drawDieMap();
+        s_drawWaferPattern(data);
+        s_drawIntraDiePattern();
+        
+        const dieCountDisplay = document.getElementById('s_dieCountDisplay');
+        const pointCountEl = document.getElementById('s_pointCount');
+        const totalPoints = Object.values(data.allPoints).reduce((sum, arr) => sum + arr.length, 0);
+        dieCountDisplay.textContent = `활성 다이: ${data.activeDies.length}개`;
+        pointCountEl.textContent = totalPoints;
+    }
+
+    function s_drawDieMap() {
+        if (!s_generatedData) return;
+
+        const { canvas, ctx, scale, offsetX, offsetY, dieSize } = s_getCanvasDrawingContext(
+            document.getElementById('s_dieMapCanvas'),
+            s_generatedData,
+            0.9 // padding
+        );
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const radius = s_generatedData.waferDiameter / 2;
+        const maxIndexX = Math.floor(radius / s_generatedData.pitchX);
+        const maxIndexY = Math.floor(radius / s_generatedData.pitchY);
+
+        // Draw all potential die locations
+        for (let ix = -maxIndexX; ix <= maxIndexX; ix++) {
+            for (let iy = -maxIndexY; iy <= maxIndexY; iy++) {
+                const dieCenterX = ix * s_generatedData.pitchX;
+                const dieCenterY = iy * s_generatedData.pitchY;
+
+                if (Math.sqrt(dieCenterX**2 + dieCenterY**2) > radius) continue;
+
+                const key = `${ix}_${iy}`;
+                ctx.fillStyle = s_dieSelectionState[key] ? '#3b82f6' : '#6b7280'; // blue-500 or gray-500
+
+                const x = offsetX + ix * dieSize * scale;
+                const y = offsetY + iy * dieSize * scale;
+                
+                ctx.beginPath();
+                ctx.rect(x - (dieSize * scale / 2), y - (dieSize * scale / 2), dieSize * scale, dieSize * scale);
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+    }
+
+    function updateStructuredResultTabs(data) {
+        const { allPoints } = data;
+        const pointCountEl = document.getElementById('s_pointCount');
+        const tabHeadersEl = document.getElementById('s_tab-headers');
+        const tabContentsEl = document.getElementById('s_tab-contents');
+
+        tabHeadersEl.innerHTML = '';
+        tabContentsEl.innerHTML = '';
+        let totalPoints = 0;
+
+        if (!allPoints || Object.keys(allPoints).length === 0) {
+            pointCountEl.textContent = 0;
+            return;
+        }
+
+        Object.keys(allPoints).forEach((patternName, index) => {
+            const points = allPoints[patternName];
+            totalPoints += points.length;
+
+            const tabButton = document.createElement('button');
+            tabButton.className = 'tab-button whitespace-nowrap py-2 px-4 border-b-2 font-medium text-sm';
+            tabButton.textContent = patternName;
+            tabButton.dataset.tabTarget = `s-tab-${index}`;
+            if (index === 0) tabButton.classList.add('active');
+            tabHeadersEl.appendChild(tabButton);
+
+            const tableContent = document.createElement('div');
+            tableContent.id = `s-tab-${index}`;
+            if (index !== 0) tableContent.classList.add('hidden');
+            
+            let tableHTML = `<div class="table-container"><table class="data-table"><thead><tr><th>Die X</th><th>Die Y</th><th>Global X (µm)</th><th>Global Y (µm)</th></tr></thead><tbody>`;
+            points.forEach(p => {
+                tableHTML += `<tr><td>${p.dieX}</td><td>${p.dieY}</td><td>${p.globalX.toFixed(2)}</td><td>${p.globalY.toFixed(2)}</td></tr>`;
+            });
+            tableHTML += `</tbody></table></div>`;
+            tableContent.innerHTML = tableHTML;
+            tabContentsEl.appendChild(tableContent);
+        });
+
+        pointCountEl.textContent = totalPoints;
+
+        const s_tabs = tabHeadersEl.querySelectorAll('.tab-button');
+        const s_tabContents = tabContentsEl.querySelectorAll('#s_tab-contents > div');
+        s_tabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                s_tabs.forEach(t => t.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                s_tabContents.forEach(content => {
+                    content.classList.toggle('hidden', content.id !== e.currentTarget.dataset.tabTarget);
+                });
+            });
+        });
+    }
+    
+    function s_drawWaferPattern(data) {
+        if (!data) return;
+        const { canvas, ctx, scale, offsetX, offsetY } = s_getCanvasDrawingContext(document.getElementById('s_waferCanvas'), data);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw wafer outline
+        ctx.beginPath();
+        ctx.arc(offsetX, offsetY, (data.waferDiameter / 2) * scale, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#d1d5db'; // gray-300
+        ctx.stroke();
+
+        const colors = ['#ef4444', '#f97316', '#84cc16', '#10b981', '#06b6d4', '#8b5cf6'];
+        const legendContainer = document.getElementById('s_pattern-legend');
+        legendContainer.innerHTML = '';
+
+        Object.keys(data.allPoints).forEach((patternName, index) => {
+            const color = colors[index % colors.length];
+            legendContainer.innerHTML += `<div class="flex items-center"><span class="h-3 w-3 rounded-full mr-2" style="background-color: ${color};"></span>${patternName}</div>`;
+            
+            ctx.fillStyle = color;
+            data.allPoints[patternName].forEach(p => {
+                ctx.beginPath();
+                ctx.arc(offsetX + p.globalX * scale, offsetY + p.globalY * scale, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        });
+    }
+
+    function s_drawIntraDiePattern() {
+        if (!s_generatedData || !s_generatedData.intraDiePatterns) return;
+
+        const canvas = document.getElementById('s_intraDieCanvas');
+        const ctx = canvas.getContext('2d');
+        const { intraDiePatterns } = s_generatedData;
+
+        const allX = intraDiePatterns.map(p => p.x);
+        const allY = intraDiePatterns.map(p => p.y);
+        const minX = Math.min(...allX, 0);
+        const maxX = Math.max(...allX, 0);
+        const minY = Math.min(...allY, 0);
+        const maxY = Math.max(...allY, 0);
+
+        const rangeX = maxX - minX;
+        const rangeY = maxY - minY;
+        const padding = 20;
+        const scaleX = (canvas.width - 2 * padding) / (rangeX || 1);
+        const scaleY = (canvas.height - 2 * padding) / (rangeY || 1);
+        const scale = Math.min(scaleX, scaleY);
+
+        const offsetX = padding - minX * scale + (canvas.width - 2 * padding - rangeX * scale) / 2;
+        const offsetY = padding - minY * scale + (canvas.height - 2 * padding - rangeY * scale) / 2;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.beginPath(); ctx.moveTo(offsetX, 0); ctx.lineTo(offsetX, canvas.height); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, offsetY); ctx.lineTo(canvas.width, offsetY); ctx.stroke();
+
+        const colors = ['#ef4444', '#f97316', '#84cc16', '#10b981', '#06b6d4', '#8b5cf6'];
+        intraDiePatterns.forEach((p, index) => {
+            ctx.fillStyle = colors[index % colors.length];
+            ctx.beginPath();
+            ctx.arc(offsetX + p.x * scale, offsetY + p.y * scale, 4, 0, 2 * Math.PI);
+            ctx.fill();
+        });
+    }
+
+    function s_getCanvasDrawingContext(canvas, data, paddingRatio = 0.95) {
+        const ctx = canvas.getContext('2d');
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * devicePixelRatio;
+        canvas.height = rect.height * devicePixelRatio;
+        ctx.scale(devicePixelRatio, devicePixelRatio);
+        
+        let scale, offsetX, offsetY, dieSize = 1;
+        if (data.waferDiameter) { // For wafer/die map
+            scale = (Math.min(rect.width, rect.height) * paddingRatio) / data.waferDiameter;
+            offsetX = rect.width / 2;
+            offsetY = rect.height / 2;
+            dieSize = Math.max(data.pitchX, data.pitchY) / (data.waferDiameter / 2) * (Math.min(rect.width, rect.height) / 2);
+        }
+
+        return { canvas: rect, ctx, scale, offsetX, offsetY, dieSize };
+    }
+
+    function s_handleCanvasInteraction(canvas, tooltip, findItem, formatTooltip) {
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const item = findItem(x, y);
+
+            if (item) {
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${e.clientX + 15}px`;
+                tooltip.style.top = `${e.clientY + 15}px`;
+                tooltip.innerHTML = formatTooltip(item);
+            } else {
+                tooltip.style.display = 'none';
+            }
+        });
+
+        canvas.addEventListener('mouseout', () => {
+            tooltip.style.display = 'none';
+        });
+    }
+
+    function showToast(msg, type = 'info') {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+        toast.textContent = msg;
+
+        // Reset to default style
+        toast.style.backgroundColor = '';
+        toast.className = 'toast';
+
+        switch (type) {
+            case 'error':
+                toast.style.backgroundColor = '#e53e3e'; // Tailwind red-600
+                break;
+            case 'success':
+                toast.style.backgroundColor = '#38a169'; // Tailwind green-600
+                break;
+            default:
+                toast.style.backgroundColor = '#2d3748'; // Default gray-800
+        }
+
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
+    }
+    
+    window.s_loadRecipeToUI = ()=>{};
+    window.u_loadRecipeToUI = ()=>{};
+
+    </script>
+</body>
+</html>
