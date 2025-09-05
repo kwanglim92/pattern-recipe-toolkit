@@ -997,377 +997,352 @@
                 }))
             };
             
-            return `<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${lineName} - 전용 레시피 뷰어</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Noto Sans KR', sans-serif; }
-        .toast {
-            position: fixed; bottom: 20px; left: 50%;
-            transform: translateX(-50%); background-color: #2d3748;
-            color: white; padding: 10px 20px; border-radius: 8px;
-            opacity: 0; transition: opacity 0.3s ease-in-out; z-index: 1000;
-        }
-        .toast.show { opacity: 1; }
-        canvas { background-color: #f9fafb; border-radius: 0.5rem; border: 1px solid #e5e7eb; }
-        #recipe-list a.active { background-color: #e0e7ff; color: #3730a3; }
-        .table-container { max-height: 20rem; overflow-y: auto; }
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th, .data-table td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; font-size: 0.8rem; }
-        .data-table th { background-color: #f3f4f6; font-weight: 600; }
-    </style>
-</head>
-<body class="bg-gray-100 text-gray-800">
-    <div class="container mx-auto p-4 md:p-8">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">${lineName}</h1>
-            <h2 class="text-xl text-gray-600 mt-2">전용 레시피 뷰어</h2>
-            <p class="mt-2 text-sm text-gray-500">생성일: ${generationDate}</p>
-            <p class="text-sm text-gray-500">총 ${selectedRecipes.length}개 레시피</p>
-        </header>
-
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
-            <!-- 레시피 목록 및 정보 -->
-            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg space-y-4">
-                <div class="pt-4 border-t">
-                    <h2 class="text-xl font-semibold mb-2">레시피 목록</h2>
-                    <div class="mb-3 p-2 bg-gray-50 rounded text-sm text-gray-600">
-                        총 ${selectedRecipes.length}개 레시피
-                    </div>
-                    <div id="recipe-list" class="space-y-3 max-h-80 overflow-y-auto">
-                    </div>
-                </div>
+            // HTML 템플릿을 문자열 연결 방식으로 생성하여 템플릿 리터럴 충돌 방지
+            const htmlTemplate = '<!DOCTYPE html>\n' +
+                '<html lang="ko">\n' +
+                '<head>\n' +
+                '    <meta charset="UTF-8">\n' +
+                '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+                '    <title>' + lineName + ' - 전용 레시피 뷰어</title>\n' +
+                '    <script src="https://cdn.tailwindcss.com"></script>\n' +
+                '    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">\n' +
+                '    <style>\n' +
+                '        body { font-family: \'Noto Sans KR\', sans-serif; }\n' +
+                '        .toast {\n' +
+                '            position: fixed; bottom: 20px; left: 50%;\n' +
+                '            transform: translateX(-50%); background-color: #2d3748;\n' +
+                '            color: white; padding: 10px 20px; border-radius: 8px;\n' +
+                '            opacity: 0; transition: opacity 0.3s ease-in-out; z-index: 1000;\n' +
+                '        }\n' +
+                '        .toast.show { opacity: 1; }\n' +
+                '        canvas { background-color: #f9fafb; border-radius: 0.5rem; border: 1px solid #e5e7eb; }\n' +
+                '        #recipe-list a.active { background-color: #e0e7ff; color: #3730a3; }\n' +
+                '        .table-container { max-height: 20rem; overflow-y: auto; }\n' +
+                '        .data-table { width: 100%; border-collapse: collapse; }\n' +
+                '        .data-table th, .data-table td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; font-size: 0.8rem; }\n' +
+                '        .data-table th { background-color: #f3f4f6; font-weight: 600; }\n' +
+                '    </style>\n' +
+                '</head>\n' +
+                '<body class="bg-gray-100 text-gray-800">\n' +
+                '    <div class="container mx-auto p-4 md:p-8">\n' +
+                '        <header class="text-center mb-8">\n' +
+                '            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">' + lineName + '</h1>\n' +
+                '            <h2 class="text-xl text-gray-600 mt-2">전용 레시피 뷰어</h2>\n' +
+                '            <p class="mt-2 text-sm text-gray-500">생성일: ' + generationDate + '</p>\n' +
+                '            <p class="text-sm text-gray-500">총 ' + selectedRecipes.length + '개 레시피</p>\n' +
+                '        </header>\n' +
+                '\n' +
+                '        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">\n' +
+                '            <!-- 레시피 목록 및 정보 -->\n' +
+                '            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg space-y-4">\n' +
+                '                <div class="pt-4 border-t">\n' +
+                '                    <h2 class="text-xl font-semibold mb-2">레시피 목록</h2>\n' +
+                '                    <div class="mb-3 p-2 bg-gray-50 rounded text-sm text-gray-600">\n' +
+                '                        총 ' + selectedRecipes.length + '개 레시피\n' +
+                '                    </div>\n' +
+                '                    <div id="recipe-list" class="space-y-3 max-h-80 overflow-y-auto">\n' +
+                '                    </div>\n' +
+                '                </div>\n' +
+                '                \n' +
+                '                <div id="recipe-info" class="hidden pt-4 border-t space-y-3">\n' +
+                '                    <h2 class="text-xl font-semibold">레시피 정보</h2>\n' +
+                '                    <div>\n' +
+                '                        <h3 class="font-semibold">샘플 S/N: <span id="info-sn" class="font-normal">-</span></h3>\n' +
+                '                        <p class="text-sm text-gray-500">내보낸 시각: <span id="info-timestamp">-</span></p>\n' +
+                '                    </div>\n' +
+                '                    <div class="grid grid-cols-2 gap-2 text-sm">\n' +
+                '                        <p>웨이퍼 직경: <span id="info-diameter" class="font-mono">-</span></p>\n' +
+                '                        <p>다이 피치 X: <span id="info-pitch-x" class="font-mono">-</span> µm</p>\n' +
+                '                        <p>다이 피치 Y: <span id="info-pitch-y" class="font-mono">-</span> µm</p>\n' +
+                '                        <p>선택된 다이: <span id="info-die-count" class="font-mono">-</span> 개</p>\n' +
+                '                    </div>\n' +
+                '                    <button id="copyBtn" class="w-full bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors shadow-md">\n' +
+                '                        현재 탭 복사\n' +
+                '                    </button>\n' +
+                '                </div>\n' +
+                '            </div>\n' +
+                '\n' +
+                '            <!-- 시각화 및 좌표 -->\n' +
+                '            <div id="viewer-content" class="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg space-y-6 hidden">\n' +
+                '                <div>\n' +
+                '                    <div class="flex justify-between items-center mb-2">\n' +
+                '                        <h2 class="text-xl font-semibold">패턴 시각화</h2>\n' +
+                '                        <div class="flex items-center space-x-4">\n' +
+                '                            <div class="flex items-center">\n' +
+                '                                <input type="checkbox" id="v_showDieMapToggle" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">\n' +
+                '                                <label for="v_showDieMapToggle" class="ml-2 text-sm font-medium text-gray-700">다이 맵 표시</label>\n' +
+                '                            </div>\n' +
+                '                            <div class="flex items-center">\n' +
+                '                                <input type="checkbox" id="v_showPathToggle" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>\n' +
+                '                                <label for="v_showPathToggle" class="ml-2 text-sm font-medium text-gray-700">경로 표시</label>\n' +
+                '                            </div>\n' +
+                '                        </div>\n' +
+                '                    </div>\n' +
+                '                    <div class="flex justify-between items-center mb-2">\n' +
+                '                        <div id="pattern-legend" class="flex flex-wrap gap-x-4 gap-y-1 text-sm"></div>\n' +
+                '                        <button id="v_toggleAllPatterns" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">모든 패턴 숨기기</button>\n' +
+                '                    </div>\n' +
+                '                    <canvas id="waferCanvas"></canvas>\n' +
+                '                </div>\n' +
+                '                <div>\n' +
+                '                    <h2 class="text-xl font-semibold mb-2">생성된 전체 좌표 목록</h2>\n' +
+                '                    <p class="text-sm text-gray-600 mb-2">총 <span id="pointCount">0</span>개의 좌표</p>\n' +
+                '                    <div>\n' +
+                '                        <div class="border-b border-gray-200">\n' +
+                '                            <nav id="tab-headers" class="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs"></nav>\n' +
+                '                        </div>\n' +
+                '                        <div id="tab-contents" class="mt-4"></div>\n' +
+                '                    </div>\n' +
+                '                </div>\n' +
+                '            </div>\n' +
+                '        </div>\n' +
+                '    </div>\n' +
+                '    <div id="toast" class="toast">클립보드에 복사되었습니다!</div>\n' +
+                '\n' +
+                '    <script>\n' +
+                '        // Embedded recipe data\n' +
+                '        const EMBEDDED_DATA = ' + JSON.stringify(embedData, null, 8) + ';\n' +
+                '        \n' +
+                '        ' + getEmbeddedViewerScript() + '\n' +
+                '    </script>\n' +
+                '</body>\n' +
+                '</html>';
                 
-                <div id="recipe-info" class="hidden pt-4 border-t space-y-3">
-                    <h2 class="text-xl font-semibold">레시피 정보</h2>
-                    <div>
-                        <h3 class="font-semibold">샘플 S/N: <span id="info-sn" class="font-normal">-</span></h3>
-                        <p class="text-sm text-gray-500">내보낸 시각: <span id="info-timestamp">-</span></p>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 text-sm">
-                        <p>웨이퍼 직경: <span id="info-diameter" class="font-mono">-</span></p>
-                        <p>다이 피치 X: <span id="info-pitch-x" class="font-mono">-</span> µm</p>
-                        <p>다이 피치 Y: <span id="info-pitch-y" class="font-mono">-</span> µm</p>
-                        <p>선택된 다이: <span id="info-die-count" class="font-mono">-</span> 개</p>
-                    </div>
-                    <button id="copyBtn" class="w-full bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors shadow-md">
-                        현재 탭 복사
-                    </button>
-                </div>
-            </div>
-
-            <!-- 시각화 및 좌표 -->
-            <div id="viewer-content" class="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg space-y-6 hidden">
-                <div>
-                    <div class="flex justify-between items-center mb-2">
-                        <h2 class="text-xl font-semibold">패턴 시각화</h2>
-                        <div class="flex items-center space-x-4">
-                            <div class="flex items-center">
-                                <input type="checkbox" id="v_showDieMapToggle" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                <label for="v_showDieMapToggle" class="ml-2 text-sm font-medium text-gray-700">다이 맵 표시</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input type="checkbox" id="v_showPathToggle" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
-                                <label for="v_showPathToggle" class="ml-2 text-sm font-medium text-gray-700">경로 표시</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex justify-between items-center mb-2">
-                        <div id="pattern-legend" class="flex flex-wrap gap-x-4 gap-y-1 text-sm"></div>
-                        <button id="v_toggleAllPatterns" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">모든 패턴 숨기기</button>
-                    </div>
-                    <canvas id="waferCanvas"></canvas>
-                </div>
-                <div>
-                    <h2 class="text-xl font-semibold mb-2">생성된 전체 좌표 목록</h2>
-                    <p class="text-sm text-gray-600 mb-2">총 <span id="pointCount">0</span>개의 좌표</p>
-                    <div>
-                        <div class="border-b border-gray-200">
-                            <nav id="tab-headers" class="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs"></nav>
-                        </div>
-                        <div id="tab-contents" class="mt-4"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
-
-    <script>
-        // Embedded recipe data
-        const EMBEDDED_DATA = ${JSON.stringify(embedData, null, 8)};
-        
-        // Copy all functions from main viewer for full functionality
-        // This is a simplified template - in practice, you'd need to include
-        // all the pattern processing, visualization, and coordinate functions
-        ${getEmbeddedViewerScript()}
-    </script>
-</body>
-</html>`;
+            return htmlTemplate;
         }
 
         function getEmbeddedViewerScript() {
-            // Extract all the essential functions from the main viewer
-            return `
-        // Initialize viewer with embedded data
-        let loadedRecipes = EMBEDDED_DATA.recipes;
-        let activeRecipe = null;
-        let patternVisibility = {};
-        let allPatternsVisible = true;
-        let currentDieMapData = null;
-        let currentIntraDiePatterns = null;
-        
-        // DOM Elements
-        const recipeList = document.getElementById('recipe-list');
-        const recipeInfo = document.getElementById('recipe-info');
-        const viewerContent = document.getElementById('viewer-content');
-        const waferCanvas = document.getElementById('waferCanvas');
-        const copyBtn = document.getElementById('copyBtn');
-        const toast = document.getElementById('toast');
-        const v_showDieMapToggle = document.getElementById('v_showDieMapToggle');
-        const v_showPathToggle = document.getElementById('v_showPathToggle');
-        const v_toggleAllPatterns = document.getElementById('v_toggleAllPatterns');
-        
-        const waferCtx = waferCanvas.getContext('2d');
-        
-        // Initialize the viewer
-        document.addEventListener('DOMContentLoaded', function() {
-            displayRecipeList();
-        });
-        
-        function displayRecipeList() {
-            let html = '';
-            loadedRecipes.forEach((recipe, index) => {
-                const displayName = recipe.fileName || recipe.sampleSN || \`Recipe \${index + 1}\`;
-                const waferInfo = recipe.waferInfo ? \`\${recipe.waferInfo.sizeMM}mm\` : 
-                                  recipe.inputs ? \`\${(recipe.inputs.waferDiameter / 1000).toFixed(0)}mm\` : '';
-                const waferDisplay = waferInfo ? \` (\${waferInfo})\` : '';
-                
-                html += \`
-                    <a href="#" class="recipe-item block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" data-index="\${index}">
-                        <div class="font-medium">\${displayName}</div>
-                        <div class="text-sm text-gray-500">웨이퍼: \${waferDisplay}</div>
-                    </a>
-                \`;
-            });
-            recipeList.innerHTML = html;
-            
-            // Add click event listeners
-            document.querySelectorAll('.recipe-item').forEach(item => {
-                item.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const index = parseInt(item.dataset.index);
-                    loadRecipe(loadedRecipes[index], index);
-                });
-            });
-        }
-        
-        function loadRecipe(recipe, index) {
-            activeRecipe = recipe;
-            
-            // Update UI
-            document.querySelectorAll('.recipe-item').forEach(item => item.classList.remove('active'));
-            document.querySelector(\`[data-index="\${index}"]\`).classList.add('active');
-            
-            displayRecipeInfo(recipe);
-            
-            const { dieMapData, intraDiePatterns } = processRecipeData(recipe);
-            currentDieMapData = dieMapData;
-            currentIntraDiePatterns = intraDiePatterns;
-            
-            drawPatternVisualization(recipe, dieMapData, intraDiePatterns);
-            displayCoordinateTabs(recipe);
-            
-            recipeInfo.classList.remove('hidden');
-            viewerContent.classList.remove('hidden');
-        }
-        
-        function displayRecipeInfo(recipe) {
-            const { inputs, results, sampleSN, exportTime } = recipe;
-            document.getElementById('info-sn').textContent = sampleSN || '-';
-            document.getElementById('info-timestamp').textContent = exportTime || '-';
-            document.getElementById('info-diameter').textContent = inputs ? \`\${(inputs.waferDiameter / 1000).toFixed(0)}mm\` : '-';
-            document.getElementById('info-pitch-x').textContent = inputs ? inputs.diePitchX : '-';
-            document.getElementById('info-pitch-y').textContent = inputs ? inputs.diePitchY : '-';
-            document.getElementById('info-die-count').textContent = results ? results.selectedDieCount : '-';
-        }
-        
-        function processRecipeData(recipe) {
-            // Simplified processing - in a full implementation, you'd include all the pattern processing logic
-            const dieMapData = recipe.results?.dieMapData || [];
-            const intraDiePatterns = recipe.results?.intraDiePatterns || {};
-            return { dieMapData, intraDiePatterns };
-        }
-        
-        function displayCoordinateTabs(recipe) {
-            const { results } = recipe;
-            if (!results || !results.visibleGroupedPoints) return;
-            
-            const tabHeadersContainer = document.getElementById('tab-headers');
-            const tabContentsContainer = document.getElementById('tab-contents');
-            
-            tabHeadersContainer.innerHTML = '';
-            tabContentsContainer.innerHTML = '';
-            
-            const groupedPoints = results.visibleGroupedPoints;
-            const totalPoints = Object.values(groupedPoints).reduce((sum, points) => sum + points.length, 0);
-            document.getElementById('pointCount').textContent = totalPoints;
-            
-            let isFirstTab = true;
-            for (const patternKey in groupedPoints) {
-                if (groupedPoints[patternKey].length === 0) continue;
-                
-                const tabButton = document.createElement('button');
-                tabButton.textContent = \`\${patternKey} (\${groupedPoints[patternKey].length})\`;
-                tabButton.className = 'px-3 py-2 font-medium text-sm border-b-2 focus:outline-none';
-                tabButton.dataset.target = \`tab-\${patternKey}\`;
-                
-                const tabContent = document.createElement('div');
-                tabContent.id = \`tab-\${patternKey}\`;
-                tabContent.className = 'table-container';
-                
-                const table = document.createElement('table');
-                table.className = 'data-table';
-                const headerHTML = '<thead><tr><th>패턴 No.</th><th>Grid X</th><th>Grid Y</th><th>X</th><th>Y</th></tr></thead>';
-                const rowsHTML = groupedPoints[patternKey].map((p, index) => \`<tr><td>\${index + 1}</td><td>\${p.i}</td><td>\${p.j}</td><td>\${p.x.toFixed(0)}</td><td>\${p.y.toFixed(0)}</td></tr>\`).join('');
-                table.innerHTML = headerHTML + \`<tbody>\${rowsHTML}</tbody>\`;
-                
-                tabContent.appendChild(table);
-                
-                if (isFirstTab) {
-                    tabButton.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
-                    tabContent.style.display = 'block';
-                    isFirstTab = false;
-                } else {
-                    tabButton.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-200');
-                    tabContent.style.display = 'none';
-                }
-                
-                tabButton.addEventListener('click', (e) => {
-                    document.querySelectorAll('#tab-headers button').forEach(btn => {
-                        btn.classList.remove('border-blue-500', 'text-blue-600', 'bg-blue-50');
-                        btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-200');
-                    });
-                    document.querySelectorAll('#tab-contents > div').forEach(content => {
-                        content.style.display = 'none';
-                    });
-                    
-                    e.target.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
-                    document.getElementById(e.target.dataset.target).style.display = 'block';
-                });
-                
-                tabHeadersContainer.appendChild(tabButton);
-                tabContentsContainer.appendChild(tabContent);
-            }
-        }
-        
-        function drawPatternVisualization(recipe, dieMapData, intraDiePatterns) {
-            if (!recipe || !recipe.inputs) return;
-            
-            const { waferDiameter, diePitchX, diePitchY } = recipe.inputs;
-            const waferRadius = waferDiameter / 2;
-            
-            const canvas = waferCanvas;
-            const ctx = waferCtx;
-            const container = canvas.parentElement;
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientWidth;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            const padding = 30;
-            const scale = Math.min((canvas.width - 2 * padding) / waferDiameter, (canvas.height - 2 * padding) / waferDiameter);
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            
-            // Draw wafer circle
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, waferRadius * scale, 0, 2 * Math.PI);
-            ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            // Draw die map if enabled
-            const showDieMap = v_showDieMapToggle ? v_showDieMapToggle.checked : false;
-            if (showDieMap && dieMapData) {
-                const dieWidth = diePitchX * scale;
-                const dieHeight = diePitchY * scale;
-                dieMapData.forEach(die => {
-                    const dieCenterX = centerX + die.i * diePitchX * scale;
-                    const dieCenterY = centerY - die.j * diePitchY * scale;
-                    if (die.onWafer) {
-                        ctx.fillStyle = die.selected ? 'rgba(74, 222, 128, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-                    } else {
-                        ctx.fillStyle = 'rgba(209, 213, 219, 0.2)';
-                    }
-                    ctx.fillRect(dieCenterX - dieWidth / 2, dieCenterY - dieHeight / 2, dieWidth, dieHeight);
-                    ctx.strokeStyle = die.selected ? 'rgba(156, 163, 175, 0.5)' : 'rgba(239, 68, 68, 0.4)';
-                    ctx.strokeRect(dieCenterX - dieWidth / 2, dieCenterY - dieHeight / 2, dieWidth, dieHeight);
-                });
-            }
-            
-            // Draw pattern points
-            if (recipe.results && recipe.results.visibleGroupedPoints) {
-                const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
-                let colorIndex = 0;
-                
-                for (const patternKey in recipe.results.visibleGroupedPoints) {
-                    const points = recipe.results.visibleGroupedPoints[patternKey];
-                    const color = colors[colorIndex % colors.length];
-                    
-                    ctx.fillStyle = color;
-                    points.forEach(point => {
-                        const x = centerX + point.x * scale;
-                        const y = centerY - point.y * scale;
-                        ctx.beginPath();
-                        ctx.arc(x, y, 3, 0, 2 * Math.PI);
-                        ctx.fill();
-                    });
-                    
-                    colorIndex++;
-                }
-            }
-        }
-        
-        // Copy functionality
-        copyBtn.addEventListener('click', () => {
-            const activeTable = document.querySelector('#tab-contents > div:not([style*="display: none"]) table');
-            if (!activeTable) return;
-            
-            let tsvContent = '';
-            activeTable.querySelectorAll('tr').forEach(row => {
-                const rowData = [];
-                row.querySelectorAll('th, td').forEach(cell => { rowData.push(cell.innerText); });
-                tsvContent += rowData.join('\\\\t') + '\\\\n';
-            });
-
-            navigator.clipboard.writeText(tsvContent).then(() => {
-                toast.classList.add('show');
-                setTimeout(() => { toast.classList.remove('show'); }, 2000);
-            });
-        });
-        
-        // Visualization toggle event listeners
-        if (v_showDieMapToggle) {
-            v_showDieMapToggle.addEventListener('change', () => {
-                if (activeRecipe && currentDieMapData && currentIntraDiePatterns) {
-                    drawPatternVisualization(activeRecipe, currentDieMapData, currentIntraDiePatterns);
-                }
-            });
-        }
-        
-        if (v_showPathToggle) {
-            v_showPathToggle.addEventListener('change', () => {
-                if (activeRecipe && currentDieMapData && currentIntraDiePatterns) {
-                    drawPatternVisualization(activeRecipe, currentDieMapData, currentIntraDiePatterns);
-                }
-            });
-        }
-        `;
+            // 문자열 연결 방식으로 JavaScript 코드 생성하여 템플릿 리터럴 충돌 방지
+            return '// Initialize viewer with embedded data\n' +
+                'let loadedRecipes = EMBEDDED_DATA.recipes;\n' +
+                'let activeRecipe = null;\n' +
+                'let patternVisibility = {};\n' +
+                'let allPatternsVisible = true;\n' +
+                'let currentDieMapData = null;\n' +
+                'let currentIntraDiePatterns = null;\n' +
+                '\n' +
+                '// DOM Elements\n' +
+                'const recipeList = document.getElementById(\'recipe-list\');\n' +
+                'const recipeInfo = document.getElementById(\'recipe-info\');\n' +
+                'const viewerContent = document.getElementById(\'viewer-content\');\n' +
+                'const waferCanvas = document.getElementById(\'waferCanvas\');\n' +
+                'const copyBtn = document.getElementById(\'copyBtn\');\n' +
+                'const toast = document.getElementById(\'toast\');\n' +
+                'const v_showDieMapToggle = document.getElementById(\'v_showDieMapToggle\');\n' +
+                'const v_showPathToggle = document.getElementById(\'v_showPathToggle\');\n' +
+                'const v_toggleAllPatterns = document.getElementById(\'v_toggleAllPatterns\');\n' +
+                '\n' +
+                'let waferCtx = null;\n' +
+                '\n' +
+                '// Initialize the viewer\n' +
+                'document.addEventListener(\'DOMContentLoaded\', function() {\n' +
+                '    if (waferCanvas) waferCtx = waferCanvas.getContext(\'2d\');\n' +
+                '    displayRecipeList();\n' +
+                '});\n' +
+                '\n' +
+                'function displayRecipeList() {\n' +
+                '    let html = \'\';\n' +
+                '    loadedRecipes.forEach((recipe, index) => {\n' +
+                '        const displayName = recipe.fileName || recipe.sampleSN || (\'Recipe \' + (index + 1));\n' +
+                '        const waferInfo = recipe.waferInfo ? (recipe.waferInfo.sizeMM + \'mm\') : \n' +
+                '                          recipe.inputs ? ((recipe.inputs.waferDiameter / 1000).toFixed(0) + \'mm\') : \'\';\n' +
+                '        const waferDisplay = waferInfo ? (\' (\' + waferInfo + \')\') : \'\';\n' +
+                '        \n' +
+                '        html += \'<a href="#" class="recipe-item block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" data-index="\' + index + \'">\' +\n' +
+                '               \'<div class="font-medium">\' + displayName + \'</div>\' +\n' +
+                '               \'<div class="text-sm text-gray-500">웨이퍼: \' + waferDisplay + \'</div>\' +\n' +
+                '               \'</a>\';\n' +
+                '    });\n' +
+                '    recipeList.innerHTML = html;\n' +
+                '    \n' +
+                '    // Add click event listeners\n' +
+                '    document.querySelectorAll(\'.recipe-item\').forEach(item => {\n' +
+                '        item.addEventListener(\'click\', (e) => {\n' +
+                '            e.preventDefault();\n' +
+                '            const index = parseInt(item.dataset.index);\n' +
+                '            loadRecipe(loadedRecipes[index], index);\n' +
+                '        });\n' +
+                '    });\n' +
+                '}\n' +
+                '\n' +
+                'function loadRecipe(recipe, index) {\n' +
+                '    activeRecipe = recipe;\n' +
+                '    \n' +
+                '    // Update UI\n' +
+                '    document.querySelectorAll(\'.recipe-item\').forEach(item => item.classList.remove(\'active\'));\n' +
+                '    const activeItem = document.querySelector(\'[data-index="\' + index + \'"]\');\n' +
+                '    if (activeItem) activeItem.classList.add(\'active\');\n' +
+                '    \n' +
+                '    displayRecipeInfo(recipe);\n' +
+                '    \n' +
+                '    const { dieMapData, intraDiePatterns } = processRecipeData(recipe);\n' +
+                '    currentDieMapData = dieMapData;\n' +
+                '    currentIntraDiePatterns = intraDiePatterns;\n' +
+                '    \n' +
+                '    drawPatternVisualization(recipe, dieMapData, intraDiePatterns);\n' +
+                '    displayCoordinateTabs(recipe);\n' +
+                '    \n' +
+                '    recipeInfo.classList.remove(\'hidden\');\n' +
+                '    viewerContent.classList.remove(\'hidden\');\n' +
+                '}\n' +
+                '\n' +
+                'function displayRecipeInfo(recipe) {\n' +
+                '    const { inputs, results, sampleSN, exportTime } = recipe;\n' +
+                '    const infoSn = document.getElementById(\'info-sn\');\n' +
+                '    const infoTimestamp = document.getElementById(\'info-timestamp\');\n' +
+                '    const infoDiameter = document.getElementById(\'info-diameter\');\n' +
+                '    const infoPitchX = document.getElementById(\'info-pitch-x\');\n' +
+                '    const infoPitchY = document.getElementById(\'info-pitch-y\');\n' +
+                '    const infoDieCount = document.getElementById(\'info-die-count\');\n' +
+                '    \n' +
+                '    if (infoSn) infoSn.textContent = sampleSN || \'-\';\n' +
+                '    if (infoTimestamp) infoTimestamp.textContent = exportTime || \'-\';\n' +
+                '    if (infoDiameter) infoDiameter.textContent = inputs ? ((inputs.waferDiameter / 1000).toFixed(0) + \'mm\') : \'-\';\n' +
+                '    if (infoPitchX) infoPitchX.textContent = inputs ? inputs.diePitchX : \'-\';\n' +
+                '    if (infoPitchY) infoPitchY.textContent = inputs ? inputs.diePitchY : \'-\';\n' +
+                '    if (infoDieCount) infoDieCount.textContent = results ? results.selectedDieCount : \'-\';\n' +
+                '}\n' +
+                '\n' +
+                'function processRecipeData(recipe) {\n' +
+                '    const dieMapData = recipe.results?.dieMapData || [];\n' +
+                '    const intraDiePatterns = recipe.results?.intraDiePatterns || {};\n' +
+                '    return { dieMapData, intraDiePatterns };\n' +
+                '}\n' +
+                '\n' +
+                'function displayCoordinateTabs(recipe) {\n' +
+                '    const { results } = recipe;\n' +
+                '    if (!results || !results.visibleGroupedPoints) return;\n' +
+                '    \n' +
+                '    const tabHeadersContainer = document.getElementById(\'tab-headers\');\n' +
+                '    const tabContentsContainer = document.getElementById(\'tab-contents\');\n' +
+                '    \n' +
+                '    tabHeadersContainer.innerHTML = \'\';\n' +
+                '    tabContentsContainer.innerHTML = \'\';\n' +
+                '    \n' +
+                '    const groupedPoints = results.visibleGroupedPoints;\n' +
+                '    const totalPoints = Object.values(groupedPoints).reduce((sum, points) => sum + points.length, 0);\n' +
+                '    const pointCountElement = document.getElementById(\'pointCount\');\n' +
+                '    if (pointCountElement) pointCountElement.textContent = totalPoints;\n' +
+                '    \n' +
+                '    let isFirstTab = true;\n' +
+                '    for (const patternKey in groupedPoints) {\n' +
+                '        if (groupedPoints[patternKey].length === 0) continue;\n' +
+                '        \n' +
+                '        const tabButton = document.createElement(\'button\');\n' +
+                '        tabButton.textContent = patternKey + \' (\' + groupedPoints[patternKey].length + \')\';\n' +
+                '        tabButton.className = \'px-3 py-2 font-medium text-sm border-b-2 focus:outline-none\';\n' +
+                '        tabButton.dataset.target = \'tab-\' + patternKey;\n' +
+                '        \n' +
+                '        const tabContent = document.createElement(\'div\');\n' +
+                '        tabContent.id = \'tab-\' + patternKey;\n' +
+                '        tabContent.className = \'table-container\';\n' +
+                '        \n' +
+                '        const table = document.createElement(\'table\');\n' +
+                '        table.className = \'data-table\';\n' +
+                '        const headerHTML = \'<thead><tr><th>패턴 No.</th><th>Grid X</th><th>Grid Y</th><th>X</th><th>Y</th></tr></thead>\';\n' +
+                '        let rowsHTML = \'\';\n' +
+                '        groupedPoints[patternKey].forEach((p, index) => {\n' +
+                '            rowsHTML += \'<tr><td>\' + (index + 1) + \'</td><td>\' + p.i + \'</td><td>\' + p.j + \'</td><td>\' + p.x.toFixed(0) + \'</td><td>\' + p.y.toFixed(0) + \'</td></tr>\';\n' +
+                '        });\n' +
+                '        table.innerHTML = headerHTML + \'<tbody>\' + rowsHTML + \'</tbody>\';\n' +
+                '        \n' +
+                '        tabContent.appendChild(table);\n' +
+                '        \n' +
+                '        if (isFirstTab) {\n' +
+                '            tabButton.classList.add(\'border-blue-500\', \'text-blue-600\', \'bg-blue-50\');\n' +
+                '            tabContent.style.display = \'block\';\n' +
+                '            isFirstTab = false;\n' +
+                '        } else {\n' +
+                '            tabButton.classList.add(\'border-transparent\', \'text-gray-500\', \'hover:text-gray-700\', \'hover:border-gray-200\');\n' +
+                '            tabContent.style.display = \'none\';\n' +
+                '        }\n' +
+                '        \n' +
+                '        tabButton.addEventListener(\'click\', (e) => {\n' +
+                '            document.querySelectorAll(\'#tab-headers button\').forEach(btn => {\n' +
+                '                btn.classList.remove(\'border-blue-500\', \'text-blue-600\', \'bg-blue-50\');\n' +
+                '                btn.classList.add(\'border-transparent\', \'text-gray-500\', \'hover:text-gray-700\', \'hover:border-gray-200\');\n' +
+                '            });\n' +
+                '            document.querySelectorAll(\'#tab-contents > div\').forEach(content => {\n' +
+                '                content.style.display = \'none\';\n' +
+                '            });\n' +
+                '            \n' +
+                '            e.target.classList.add(\'border-blue-500\', \'text-blue-600\', \'bg-blue-50\');\n' +
+                '            const targetElement = document.getElementById(e.target.dataset.target);\n' +
+                '            if (targetElement) targetElement.style.display = \'block\';\n' +
+                '        });\n' +
+                '        \n' +
+                '        tabHeadersContainer.appendChild(tabButton);\n' +
+                '        tabContentsContainer.appendChild(tabContent);\n' +
+                '    }\n' +
+                '}\n' +
+                '\n' +
+                'function drawPatternVisualization(recipe, dieMapData, intraDiePatterns) {\n' +
+                '    if (!recipe || !recipe.inputs || !waferCtx) return;\n' +
+                '    \n' +
+                '    const { waferDiameter, diePitchX, diePitchY } = recipe.inputs;\n' +
+                '    const waferRadius = waferDiameter / 2;\n' +
+                '    \n' +
+                '    const canvas = waferCanvas;\n' +
+                '    const ctx = waferCtx;\n' +
+                '    const container = canvas.parentElement;\n' +
+                '    canvas.width = container.clientWidth;\n' +
+                '    canvas.height = container.clientWidth;\n' +
+                '    ctx.clearRect(0, 0, canvas.width, canvas.height);\n' +
+                '    \n' +
+                '    const padding = 30;\n' +
+                '    const scale = Math.min((canvas.width - 2 * padding) / waferDiameter, (canvas.height - 2 * padding) / waferDiameter);\n' +
+                '    const centerX = canvas.width / 2;\n' +
+                '    const centerY = canvas.height / 2;\n' +
+                '    \n' +
+                '    // Draw wafer circle\n' +
+                '    ctx.beginPath();\n' +
+                '    ctx.arc(centerX, centerY, waferRadius * scale, 0, 2 * Math.PI);\n' +
+                '    ctx.strokeStyle = \'rgba(255, 0, 0, 0.5)\';\n' +
+                '    ctx.lineWidth = 2;\n' +
+                '    ctx.stroke();\n' +
+                '    \n' +
+                '    // Draw pattern points\n' +
+                '    if (recipe.results && recipe.results.visibleGroupedPoints) {\n' +
+                '        const colors = [\'#FF6B6B\', \'#4ECDC4\', \'#45B7D1\', \'#96CEB4\', \'#FFEAA7\', \'#DDA0DD\', \'#98D8C8\'];\n' +
+                '        let colorIndex = 0;\n' +
+                '        \n' +
+                '        for (const patternKey in recipe.results.visibleGroupedPoints) {\n' +
+                '            const points = recipe.results.visibleGroupedPoints[patternKey];\n' +
+                '            const color = colors[colorIndex % colors.length];\n' +
+                '            \n' +
+                '            ctx.fillStyle = color;\n' +
+                '            points.forEach(point => {\n' +
+                '                const x = centerX + point.x * scale;\n' +
+                '                const y = centerY - point.y * scale;\n' +
+                '                ctx.beginPath();\n' +
+                '                ctx.arc(x, y, 3, 0, 2 * Math.PI);\n' +
+                '                ctx.fill();\n' +
+                '            });\n' +
+                '            \n' +
+                '            colorIndex++;\n' +
+                '        }\n' +
+                '    }\n' +
+                '}\n' +
+                '\n' +
+                '// Copy functionality\n' +
+                'if (copyBtn) {\n' +
+                '    copyBtn.addEventListener(\'click\', () => {\n' +
+                '        const activeTable = document.querySelector(\'#tab-contents > div:not([style*="display: none"]) table\');\n' +
+                '        if (!activeTable) return;\n' +
+                '        \n' +
+                '        let tsvContent = \'\';\n' +
+                '        activeTable.querySelectorAll(\'tr\').forEach(row => {\n' +
+                '            const rowData = [];\n' +
+                '            row.querySelectorAll(\'th, td\').forEach(cell => { rowData.push(cell.innerText); });\n' +
+                '            tsvContent += rowData.join(\'\\t\') + \'\\n\';\n' +
+                '        });\n' +
+                '\n' +
+                '        navigator.clipboard.writeText(tsvContent).then(() => {\n' +
+                '            toast.classList.add(\'show\');\n' +
+                '            setTimeout(() => { toast.classList.remove(\'show\'); }, 2000);\n' +
+                '        });\n' +
+                '    });\n' +
+                '}';
         }
 
         function generateLineViewer() {
